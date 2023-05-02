@@ -53,12 +53,20 @@ class Block:
         self.previous_hash = 0
         self.data = 0
 
+# class User:
+#     def __init__(self):
+        # public key
+        # private key
+    
+    # UTXO ledger update
+
 
 # class Server:
 # -- Circular queue mock, then network using sockets
+# UTXO Model (ledger) keeping track of individuals (SQL)
 
 # class User:
-# -- RSA Key Pair manual generation
+# -- RSA Key Pair manual generation (temporary use lib)
 
 # class Node(User):
 # -- block reward system implementation
