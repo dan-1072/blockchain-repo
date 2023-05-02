@@ -1,6 +1,6 @@
 from datetime import datetime
 import hashlib
-# test change
+
 class Blockchain:
     def __init__(self):
         self.proof_of_work = '0' * 8
