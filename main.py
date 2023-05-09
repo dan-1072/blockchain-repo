@@ -57,13 +57,71 @@ class Block:
 #     def __init__(self):
         # public key
         # private key
+
+        # generate public key
+
+class mUser:
+    def __init__(self):
+        self.key_pair = self.generate_keys()
+        self.public_key = self.key_pair[0]
+        self.private_key = self.key_pair[1]
+
+    def generate_keys(self, prime1, prime2, int1, int2):
+        p = prime1
+        # prime checker
+        q = prime2
+        N = p*q
+        phiN = (p-1)*(q-1)
+        e = int1
+        d = int2
+        # modular checker
+        ed = e*d 
+        if (ed - 1) % phiN !=0:
+            return 'invalid ed'
+        pk = [e, N]
+        sk = [d]
+        return [pk, sk]
+        
+    def authenticate(self, message):
+        # convert message into an integer algorithmically
+        # raise converted message to power of sk
+        pass
+    def verify(self, ciphertext, sender_pk):
+        # raise ciphertext to power of index 0 of sender's pk
+        pass
+    def transaction_request(self, receiver_pk):
+        # 
+        pass
+    def utxo_update(self, utxo_ledger):
+        # 
+        pass
     
     # UTXO ledger update
-
+# node inherits from user, carries copy of blockchain consensus
 
 # class Server:
 # -- Circular queue mock, then network using sockets
-# UTXO Model (ledger) keeping track of individuals (SQL)
+# UTXO Model (ledger) keeping track of individuals balance (SQL)
+class mServer:
+    def __init__(self, blockchain):
+        self.blockchain = blockchain
+        self.server = []
+        self.front = 0
+        self.rear = 0
+        self.ledger = [] 
+
+    def enqueue(self, item):
+        self.server.append(item)
+        self.rear += 1
+        if self.front == 0:
+            self.front += 1
+
+    def dequeue(self):
+        return self.server.pop(self.front)
+    
+    def check_empty(self):
+        if self.front == self.rear + 1:
+            return 'empty'
 
 # class User:
 # -- RSA Key Pair manual generation (temporary use lib)
