@@ -65,13 +65,13 @@ class mUser:
         self.key_pair = self.generate_keys()
         self.public_key = self.key_pair[0]
         self.private_key = self.key_pair[1]
-
+    # generate primes and ints automatically, compare with rsa from lib
     def generate_keys(self, prime1, prime2, int1, int2):
         p = prime1
         # prime checker
         q = prime2
         N = p*q
-        phiN = (p-1)*(q-1)
+        phiN = (p-1)*(q-1) # pq 
         e = int1
         d = int2
         # modular checker
@@ -84,10 +84,10 @@ class mUser:
         
     def authenticate(self, message):
         # convert message into an integer algorithmically
-        # raise converted message to power of sk
+        # raise encoded message to power of sk to encrypt
         pass
     def verify(self, ciphertext, sender_pk):
-        # raise ciphertext to power of index 0 of sender's pk
+        # raise ciphertext to power of index 0 of sender's pk to decrypt
         pass
     def transaction_request(self, receiver_pk):
         # 
