@@ -46,7 +46,7 @@ class Block:
             self.nonce += 1
             self.dict_repr = {'timestamp': self.timestamp, 'previous hash': self.previous_hash, 'transactions': self.data, 'nonce': self.nonce}
             self.hash = self.get_hash()
-    # introduce proof-of-work variable later
+    # introduce proof-of-work variable late
 
     def genesis_block(self):
         self.previous_hash = 0
