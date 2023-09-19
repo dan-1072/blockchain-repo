@@ -16,7 +16,7 @@ def remove(dataset):
     index = random.randint(0, length)
     return dataset.pop(index)
 
-def item_transfer(self, dataset):
+def item_transfer(dataset):
     length = len(dataset)
     index = random.randint(0, length)
     return dataset.pop(index)
@@ -25,13 +25,10 @@ ds = dataset(20)
 
 # ^^^ example dataset ^^^
 
-# redo git username 
-
 class Node:
     def __init__(self, dataset):
         self.dataset = dataset
-        self.node = [self.fill()]
-
+        self.node = []
 
     def fill(self):
         self.item = item_transfer(self.dataset)
@@ -43,6 +40,7 @@ class Node:
         print(self.node)
 
 eg_node = Node(ds)
+eg_node.fill()
 eg_node.reveal()
 
 

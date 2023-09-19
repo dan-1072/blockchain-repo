@@ -29,6 +29,7 @@ class Block:
         self.nonce = 0
         self.dict_repr = {'timestamp': self.timestamp, 'previous hash': self.previous_hash, 'transactions': self.data, 'nonce': self.nonce}
         self.hash = self.get_hash()
+        
 
 
     def __repr__(self):
@@ -80,7 +81,7 @@ class mUser:
             return 'invalid ed'
         pk = [e, N]
         sk = [d]
-        return [pk, sk]
+        return [pk, sk]  
         
     def authenticate(self, message):
         # convert message into an integer algorithmically
