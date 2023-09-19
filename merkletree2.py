@@ -39,11 +39,6 @@ class Node:
     def reveal(self):
         print(self.node)
 
-eg_node = Node(ds)
-eg_node.fill()
-eg_node.reveal()
-
-
 # ^^^ allocate half the dataset to nodes in pairs and represent data in nodes as hashes ^^^
 
 # ^^^ allocate half of the new smaller dataset to the node pairs, represented by a hash using the contatenated hashes of the child nodes ^^^
