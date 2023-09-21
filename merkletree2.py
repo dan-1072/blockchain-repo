@@ -47,7 +47,7 @@ class merkleTree:
         self.dataset = dataset
         self.tree = []
 
-    def generate(self):
+    def leaf_nodes(self):
         while len(self.dataset) > 0:
             if len(self.dataset) > 1:
                 node_pair = [Node(self.dataset).repr(), Node(self.dataset).repr()]
@@ -57,10 +57,36 @@ class merkleTree:
                 node2 = f"{node1}"
                 node_pair = [node1, node2]
                 self.tree.append(node_pair)
+    
+    def tree_gen(self):
         for pair in self.tree:
             hash_input = pair[0] + pair[1]
-            
+            parent_node = hashlib.sha256(hash_input).hexdigest()
+        
 
-# ^^^ allocate half of the new smaller dataset to the node pairs, represented by a hash using the contatenated hashes of the child nodes ^^^
+tree = [[[1, 2], [1, 2], [1, 2], [1, 2]]]
+lvl_count = 0
+def tree_recursion(tree, lvl_count):
+    if len(tree[lvl_count]) > 1:
+        level = []
+        transfer = []
+        tree.append(level)
+        lvl_count = lvl_count + 1
+        for pair in tree[(lvl_count -1)]:
+            hash_input = pair[0] + pair[1]
+            parent_node = hashlib.sha256(str(hash_input).encode("utf-8")).hexdigest()
+            transfer.append(parent_node)
+        while len(transfer) > 0: # ! uneven tree case (if its even possible)
+            for i in transfer:
+                node_pair = [transfer.pop(transfer.index(i)), transfer.pop(transfer.index(i)+1)] # ! next element after i does not exist after i is popped, out of range error
+                print(node_pair)
+                tree[lvl_count].append(node_pair)
+        tree_recursion(tree, lvl_count)
+    else:
+        return tree[lvl_count][0]
 
-# ^^^ recursively replicate the process unti a Merkle root is reached, containing the concatenated hashes of the whole tree ^^^
+tree_recursion(tree, lvl_count)
+
+
+
+# for each node pair of hashes from transactions, create a hash representing the pair, this is the parent node
