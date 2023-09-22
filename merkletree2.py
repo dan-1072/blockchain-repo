@@ -64,29 +64,51 @@ class merkleTree:
             parent_node = hashlib.sha256(hash_input).hexdigest()
         
 
-tree = [[[1, 2], [1, 2], [1, 2], [1, 2]]]
-lvl_count = 0
-def tree_recursion(tree, lvl_count):
-    if len(tree[lvl_count]) > 1:
-        level = []
-        transfer = []
-        tree.append(level)
-        lvl_count = lvl_count + 1
-        for pair in tree[(lvl_count -1)]:
-            hash_input = pair[0] + pair[1]
-            parent_node = hashlib.sha256(str(hash_input).encode("utf-8")).hexdigest()
-            transfer.append(parent_node)
-        while len(transfer) > 0: # ! uneven tree case (if its even possible)
-            for i in transfer:
-                node_pair = [transfer.pop(transfer.index(i)), transfer.pop(transfer.index(i)+1)] # ! next element after i does not exist after i is popped, out of range error
-                print(node_pair)
-                tree[lvl_count].append(node_pair)
-        tree_recursion(tree, lvl_count)
-    else:
-        return tree[lvl_count][0]
-
-tree_recursion(tree, lvl_count)
+# tree = [[[1, 2], [1, 2], [1, 2], [1, 2]]]
+# lvl_count = 0
 
 
+
+# def tree_recursion(tree, lvl_count):
+#     if len(tree[lvl_count]) > 1:
+#         level = []
+#         transfer = []
+#         tree.append(level)
+#         lvl_count = lvl_count + 1
+#         for pair in tree[(lvl_count)]:
+#             hash_input = pair[0] + pair[1]
+#             parent_node = hashlib.sha256(str(hash_input).encode("utf-8")).hexdigest()
+#             transfer.append(parent_node)
+#         print(transfer)
+#         while len(transfer) > 0: # ! uneven tree case (if its even possible)
+#             for i in transfer:
+#                 child1 = transfer.pop(transfer.index(i))# ! next element after i does not exist after i is popped, out of range error
+#                 child2 = transfer.pop(transfer.index(i)+1)
+#                 node_pair = [child1, child2]
+#                 print(node_pair)
+#                 tree[lvl_count].append(node_pair)
+#         tree_recursion(tree, lvl_count)
+#     else:
+#         return tree[lvl_count][0]
+
+# tree_recursion(tree, lvl_count)
+
+
+# tree recursion: tree contains lists (levels), leaf level = 0, append all leaf nodes to leaf level, pair up leaf nodes, create nxt lvl, append hashed
+# pairs to nxt lvl, create pairs from nxt lvl, hash pairs, append to nxt nxt lvl, repeat until len(n  nxt lvl) = 1
+
+tree = []
+lvl_count = -1
+
+def nxt_lvl(tree, lvl_count):
+    nxt_lvl = []
+    tree.append(nxt_lvl)
+    lvl_count += 1
+    return lvl_count
+
+lvl_count = nxt_lvl(tree, lvl_count)
+lvl_count = nxt_lvl(tree, lvl_count)
+lvl_count = nxt_lvl(tree, lvl_count)
+print(tree, lvl_count)
 
 # for each node pair of hashes from transactions, create a hash representing the pair, this is the parent node
