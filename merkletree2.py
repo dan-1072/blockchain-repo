@@ -100,15 +100,53 @@ class merkleTree:
 tree = []
 lvl_count = -1
 
-def nxt_lvl(tree, lvl_count):
+def nxt_lvl(tree, lvl_count): # generate next level in tree
     nxt_lvl = []
     tree.append(nxt_lvl)
     lvl_count += 1
-    return lvl_count
+    return lvl_count # returns incremented level count for lvl_count reassignment 
 
-lvl_count = nxt_lvl(tree, lvl_count)
-lvl_count = nxt_lvl(tree, lvl_count)
-lvl_count = nxt_lvl(tree, lvl_count)
-print(tree, lvl_count)
+def leaf_lvl(tree, leaf_size): # generate initial leaf nodes for first tree level
+    nxt_lvl(tree, lvl_count)
+    while len(tree[0]) < leaf_size:
+        tree[0].append(random.randint(10, 99))
+
+def lvl_fill(tree):
+    transfer = []
+    i_count = 0
+    for i in tree[-1]: # generate parent nodes from child nodes of current level
+        i_count += 1
+        if i_count % 2 == 0:
+            transfer.append([tree[-1][(tree[-1].index(i))-1], i])
+        else:
+            pass
+
+    nxt_lvl(tree, lvl_count) # generate the next level in tree
+
+    for pair in transfer: # fill next level with the generated parent nodes
+        hash_input = (str(pair[0]) + str(pair[1])).encode("utf-8")
+        parent_node = hashlib.sha256(hash_input).hexdigest()
+        tree[lvl_count].append(parent_node)
+    for pair in transfer:
+        transfer.pop(transfer.index(pair)) # empty transfer
+
+    if len(tree[-1]) > 1:
+        lvl_fill(tree)
+
+    else:
+        return tree[-1][0]
+
+    
+
+# generate leaf nodes
+# generate next level
+# generate parent nodes from leaves
+# generate next level
+# generate parent nodes from last level
+# generate next level 
+# recursion 
+
+leaf_lvl(tree, 8)
+lvl_fill(tree)
 
 # for each node pair of hashes from transactions, create a hash representing the pair, this is the parent node
