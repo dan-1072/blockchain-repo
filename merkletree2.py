@@ -1,5 +1,6 @@
 import hashlib
 import random
+import datetime
 
 def data(): # generate a single item of data (single digit integer)
     data = random.randint(0, 9)
@@ -17,6 +18,28 @@ def item_transfer(dataset): # remove item from dataset and return item
     return dataset.pop(index)
 
 # ^^^ example dataset (implement as OOP) ^^^
+
+class exampleDataset: 
+    def __init__(self, length):
+        self.dataset = []
+        self.length = length # desired length of example dataset
+
+    def data_gen(self): # generate single item of data
+            data = random.randint(0, 9)
+            return data
+
+    def set(self): # generate dataset 
+        while len(self.dataset) < self.length:
+            data = self.data_gen()
+            self.dataset.append(data)
+        return self.dataset
+    
+    def item_transfer(self): # transfer element out of dataset
+        length = len(self.dataset)
+        index = random.randint(0, length - 1)
+        return self.dataset.pop(index)
+    
+# example dataset class testing 
 
 class Node: # node class to store all transactions individually in nodes
     def __init__(self, dataset):
@@ -52,7 +75,7 @@ class merkleTree: # data structure class to store transaction data
         return self.lvl_count # returns incremented lvl count for lvl count reassignment
         
     
-    def tree_gen(self):
+    def merkle_root(self):
         transfer = []
         i_count = 0
         for i in self.tree[-1]: # generate parent nodes from child nodes of current level
@@ -72,16 +95,16 @@ class merkleTree: # data structure class to store transaction data
             transfer.pop(transfer.index(pair)) # empty transfer
 
         if len(self.tree[-1]) > 1:
-            self.tree_gen() # recurisely generate next level
+            self.merkle_root() # recurisely generate next level
 
         else: # merkle root has been reached
             return self.tree[-1][0]
 
-    def check(self): # check efficiently if merkle root belongs to tree (guarentees tree integrity)
+    def merkle_proof(self): # check efficiently if merkle root belongs to tree given some data (guarentees tree integrity untampered)
         pass
 
     def vis_repr(self): # visual representation of tree
-        # label each node in tree as f-string
+        # label each node in tree as f-string using T0, T1, T2, T3 -> H(T0, T1), H(T2, T3) -> H(H(T0, T1), H(T2, T3)) notation
         # assign labelled nodes 
         pass
 
@@ -89,10 +112,18 @@ class merkleTree: # data structure class to store transaction data
 # ds = dataset(8)
 # Tree = merkleTree(ds)
 # Tree.leaf_lvl()
-# Tree.tree_gen()
+# Tree.merkle_root()
 
 # testing (imperfect length)
 ds2 = dataset(7)
 Tree2 = merkleTree(ds2)
 Tree2.leaf_lvl()
-Tree2.tree_gen()
+Tree2.merkle_root()
+
+# current objectives:
+# deal with leaf levels of lengths outside powers of 2, example dataset OOP implementation, merkle proof method, merkle tree vis method
+# block class, blockchain class
+# transaction class, user class
+# RSA function, SHA-256 function
+
+# users generate transactions -> transactions picked up by nodes in network -> transactions sorted into blocks and block uploaded to blockchain network
