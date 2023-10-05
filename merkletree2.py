@@ -1,24 +1,19 @@
 import hashlib
 import random
 
-def data():
+def data(): # generate a single item of data (single digit integer)
     data = random.randint(0, 9)
     return data
 
-def dataset(length):
+def dataset(length): # create example dataset of generated data, of desired length
     dataset = []
     while len(dataset) < length:
         dataset.append(data())
     return dataset
 
-def remove(dataset):
+def item_transfer(dataset): # remove item from dataset and return item
     length = len(dataset)
-    index = random.randint(0, length)
-    return dataset.pop(index)
-
-def item_transfer(dataset):
-    length = len(dataset)
-    index = random.randint(0, length)
+    index = random.randint(0, length - 1)
     return dataset.pop(index)
 
 # ^^^ example dataset (implement as OOP) ^^^
@@ -38,25 +33,17 @@ class Node: # node class to store all transactions individually in nodes
     def repr(self): # string representation of node
         return str(self.node[0])
 
-
-class merkleTree:
+class merkleTree: # data structure class to store transaction data
     def __init__(self, dataset):
         self.dataset = dataset
         self.tree = []
         self.lvl_count = -1
 
     def leaf_lvl(self): # generate first level of hashed transactions in pairs 
-        while len(self.dataset) > 0:
-            if len(self.dataset) > 1:
-                node_pair = [Node(self.dataset).repr(), Node(self.dataset).repr()]
-                self.tree.append(node_pair)
-            elif len(self.dataset) == 1:
-                node1 = Node(self.dataset).repr()
-                node2 = f"{node1}"
-                node_pair = [node1, node2]
-                self.tree.append(node_pair)
-        self.lvl_count += 1
-        return self.tree[self.lvl_count]
+        self.nxt_lvl()
+        while len(self.dataset) > 0: # generate leaf nodes, append to leaf level until dataset is empty
+            leaf_node = Node(self.dataset).repr()
+            self.tree[self.lvl_count].append(leaf_node)
 
     def nxt_lvl(self): # generate next level in tree
         self.nxt = []
@@ -75,7 +62,7 @@ class merkleTree:
             else:
                 pass
 
-        self.nxt_lvl(self.tree, self.lvl_count) # generate the next level in tree
+        self.nxt_lvl() # generate the next level in tree
 
         for pair in transfer: # fill next level with the generated parent nodes
             hash_input = (str(pair[0]) + str(pair[1])).encode("utf-8")
@@ -85,51 +72,27 @@ class merkleTree:
             transfer.pop(transfer.index(pair)) # empty transfer
 
         if len(self.tree[-1]) > 1:
-            self.tree_gen()
+            self.tree_gen() # recurisely generate next level
 
-        else:
+        else: # merkle root has been reached
             return self.tree[-1][0]
+
+    def check(self): # check efficiently if merkle root belongs to tree (guarentees tree integrity)
         pass
 
-ds = dataset(20)
-Tree = merkleTree(ds)
-Tree.leaf_lvl()
+    def vis_repr(self): # visual representation of tree
+        # label each node in tree as f-string
+        # assign labelled nodes 
+        pass
 
-# tree = []
-# lvl_count = -1
+# testing 
+# ds = dataset(8)
+# Tree = merkleTree(ds)
+# Tree.leaf_lvl()
+# Tree.tree_gen()
 
-# def nxt_lvl(tree, lvl_count): # generate next level in tree
-#     nxt_lvl = []
-#     tree.append(nxt_lvl)
-#     lvl_count += 1
-#     return lvl_count # returns incremented level count for lvl_count reassignment 
-
-# def leaf_lvl(tree, leaf_size): # generate initial leaf nodes for first tree level
-#     nxt_lvl(tree, lvl_count)
-#     while len(tree[0]) < leaf_size:
-#         tree[0].append(random.randint(10, 99))
-
-# def lvl_fill(tree):
-    # transfer = []
-    # i_count = 0
-    # for i in tree[-1]: # generate parent nodes from child nodes of current level
-    #     i_count += 1
-    #     if i_count % 2 == 0:
-    #         transfer.append([tree[-1][(tree[-1].index(i))-1], i])
-    #     else:
-    #         pass
-
-    # nxt_lvl(tree, lvl_count) # generate the next level in tree
-
-    # for pair in transfer: # fill next level with the generated parent nodes
-    #     hash_input = (str(pair[0]) + str(pair[1])).encode("utf-8")
-    #     parent_node = hashlib.sha256(hash_input).hexdigest()
-    #     tree[lvl_count].append(parent_node)
-    # for pair in transfer:
-    #     transfer.pop(transfer.index(pair)) # empty transfer
-
-    # if len(tree[-1]) > 1:
-    #     lvl_fill(tree)
-
-    # else:
-    #     return tree[-1][0]
+# testing (imperfect length)
+ds2 = dataset(7)
+Tree2 = merkleTree(ds2)
+Tree2.leaf_lvl()
+Tree2.tree_gen()
