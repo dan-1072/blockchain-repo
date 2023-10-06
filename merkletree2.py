@@ -40,7 +40,6 @@ class exampleDataset:
         return self.dataset.pop(index)
     
 # example dataset class testing 
-
 class Node: # node class to store all transactions individually in nodes
     def __init__(self, dataset):
         self.dataset = dataset
@@ -61,18 +60,26 @@ class merkleTree: # data structure class to store transaction data
         self.dataset = dataset
         self.tree = []
         self.lvl_count = -1
+        self.leaf_level = self.leaf_lvl()
+        self.merkleRoot = self.merkle_root() # WHY DOES THIS NOT RETURN THE MERKLE ROOT
 
     def leaf_lvl(self): # generate first level of hashed transactions in pairs 
-        self.nxt_lvl()
-        while len(self.dataset) > 0: # generate leaf nodes, append to leaf level until dataset is empty
-            leaf_node = Node(self.dataset).repr()
-            self.tree[self.lvl_count].append(leaf_node)
+        if len(self.dataset) % 2 == 0: # check leaf length is even because merkle trees are a form of binary tree
+            self.nxt_lvl()
+            while len(self.dataset) > 0: # generate leaf nodes, append to leaf level until dataset is empty
+                leaf_node = Node(self.dataset).repr()
+                self.tree[self.lvl_count].append(leaf_node)
+        else: # duplicate last element in dataset and add to level to make length even
+            duplicate = self.dataset[-1] 
+            self.dataset.append(duplicate)
+            self.leaf_lvl() 
+        return self.tree[0]
 
     def nxt_lvl(self): # generate next level in tree
-        self.nxt = []
-        self.tree.append(self.nxt)
-        self.lvl_count += 1
-        return self.lvl_count # returns incremented lvl count for lvl count reassignment
+            self.nxt = []
+            self.tree.append(self.nxt)
+            self.lvl_count += 1
+            return self.lvl_count # returns incremented lvl count for lvl count reassignment
         
     
     def merkle_root(self):
@@ -98,6 +105,7 @@ class merkleTree: # data structure class to store transaction data
             self.merkle_root() # recurisely generate next level
 
         else: # merkle root has been reached
+            print("egwin")
             return self.tree[-1][0]
 
     def merkle_proof(self): # check efficiently if merkle root belongs to tree given some data (guarentees tree integrity untampered)
@@ -115,10 +123,37 @@ class merkleTree: # data structure class to store transaction data
 # Tree.merkle_root()
 
 # testing (imperfect length)
-ds2 = dataset(7)
-Tree2 = merkleTree(ds2)
-Tree2.leaf_lvl()
-Tree2.merkle_root()
+# ds2 = dataset(7)
+# Tree2 = merkleTree(ds2)
+# Tree2.leaf_lvl()
+# Tree2.merkle_root()
+
+# testing (dataset class)
+# ds3 = exampleDataset(8).set()
+# print(ds3)
+# Tree3 = merkleTree(ds3)
+# Tree3.leaf_lvl()
+# Tree3.merkle_root()
+
+# testing (dataset class uneven dataset)
+# ds4 = dataset(7)
+# Tree4 = merkleTree(ds4)
+# Tree4.leaf_lvl()
+# Tree4.merkle_root()
+
+# testing (dataset class not a power of 2 leaf level)
+ds5 = exampleDataset(9).set()
+Tree5 = merkleTree(ds5)
+# print(list(enumerate(Tree5.tree)))
+for level in Tree5.tree:
+    print(list(enumerate(level)))
+print(Tree5.tree)
+print(Tree5.merkleRoot)
+print(Tree5.leaf_level)
+
+# stage 1 test
+
+# myDataset = exampleDataset(9)
 
 # current objectives:
 # deal with leaf levels of lengths outside powers of 2, example dataset OOP implementation, merkle proof method, merkle tree vis method
