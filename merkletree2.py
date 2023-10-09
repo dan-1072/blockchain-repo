@@ -61,7 +61,8 @@ class merkleTree: # data structure class to store transaction data
         self.tree = []
         self.lvl_count = -1
         self.leaf_level = self.leaf_lvl()
-        self.merkleRoot = self.merkle_root() # WHY DOES THIS NOT RETURN THE MERKLE ROOT
+        self.merkleRoot = None # why does calling the method not return what it should return (recursive function)
+        self.merkle_root()
 
     def leaf_lvl(self): # generate first level of hashed transactions in pairs 
         if len(self.dataset) % 2 == 0: # check leaf length is even because merkle trees are a form of binary tree
@@ -105,8 +106,9 @@ class merkleTree: # data structure class to store transaction data
             self.merkle_root() # recurisely generate next level
 
         else: # merkle root has been reached
-            print("egwin")
-            return self.tree[-1][0]
+            root = (self.tree[self.lvl_count][0])
+            self.merkleRoot = root
+            return root
 
     def merkle_proof(self): # check efficiently if merkle root belongs to tree given some data (guarentees tree integrity untampered)
         pass
@@ -144,12 +146,12 @@ class merkleTree: # data structure class to store transaction data
 # testing (dataset class not a power of 2 leaf level)
 ds5 = exampleDataset(9).set()
 Tree5 = merkleTree(ds5)
-# print(list(enumerate(Tree5.tree)))
-for level in Tree5.tree:
-    print(list(enumerate(level)))
-print(Tree5.tree)
+# # print(list(enumerate(Tree5.tree)))
+# for level in Tree5.tree:
+#     print(list(enumerate(level)))
+# print(Tree5.tree)
 print(Tree5.merkleRoot)
-print(Tree5.leaf_level)
+# print(Tree5.leaf_level)
 
 # stage 1 test
 
