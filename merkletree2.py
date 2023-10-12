@@ -157,15 +157,40 @@ print(Tree5.merkleRoot)
 
 # block class
 
+class Block:
+    pass
 
-    
+    # nonce
+    # signature hash
+    # previous hash
+    # timestamp
+    # merkle root
+    # block height
+    # transactions?
+
+    # generate sig hash
+
+    # block mining function
 
 
 # blockchain class
 
+    # chain
+    # genesis block
+
+    # generate genesis block
+
+    # append block to blockchain
 
 
 # user class
+
+    # public key
+    # private key
+
+    # key pair generation
+
+    # node conversion
 
 
 
@@ -179,3 +204,6 @@ print(Tree5.merkleRoot)
 # RSA function, SHA-256 function
 
 # users generate transactions -> transactions picked up by nodes in network -> transactions sorted into blocks and block uploaded to blockchain network
+
+# user is generated (public key to represent them on network, private key to verify user is user during transactions)
+# user makes transaction with another user (RSA encryption verifies users, transaction stores)
