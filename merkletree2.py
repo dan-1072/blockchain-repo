@@ -40,7 +40,7 @@ class exampleDataset:
         return self.dataset.pop(index)
     
 # example dataset class testing 
-class Node: # node class to store all transactions individually in nodes
+class treeNode: # node class to store all transactions individually in nodes
     def __init__(self, dataset):
         self.dataset = dataset
         self.node = []
@@ -56,6 +56,7 @@ class Node: # node class to store all transactions individually in nodes
         return str(self.node[0])
 
 class merkleTree: # data structure class to store transaction data
+    # ONLY MERKLE ROOT IS STORED ON CHAIN NETWORK
     def __init__(self, dataset):
         self.dataset = dataset
         self.tree = []
@@ -68,7 +69,7 @@ class merkleTree: # data structure class to store transaction data
         if len(self.dataset) % 2 == 0: # check leaf length is even because merkle trees are a form of binary tree
             self.nxt_lvl()
             while len(self.dataset) > 0: # generate leaf nodes, append to leaf level until dataset is empty
-                leaf_node = Node(self.dataset).repr()
+                leaf_node = treeNode(self.dataset).repr()
                 self.tree[self.lvl_count].append(leaf_node)
         else: # duplicate last element in dataset and add to level to make length even
             duplicate = self.dataset[-1] 
@@ -111,6 +112,7 @@ class merkleTree: # data structure class to store transaction data
             return root
 
     def merkle_proof(self): # check efficiently if merkle root belongs to tree given some data (guarentees tree integrity untampered)
+        # START WITH A LEAF NODE (requires all the nodes along the path from this leaf node to the root node)
         pass
 
     def vis_repr(self): # visual representation of tree
@@ -153,14 +155,27 @@ Tree5 = merkleTree(ds5)
 print(Tree5.merkleRoot)
 # print(Tree5.leaf_level)
 
-# stage 1 test
+# block class
 
-# myDataset = exampleDataset(9)
+
+    
+
+
+# blockchain class
+
+
+
+# user class
+
+
+
+# node class
 
 # current objectives:
 # deal with leaf levels of lengths outside powers of 2, example dataset OOP implementation, merkle proof method, merkle tree vis method
 # block class, blockchain class
 # transaction class, user class
+# transaction format and hash prepping
 # RSA function, SHA-256 function
 
 # users generate transactions -> transactions picked up by nodes in network -> transactions sorted into blocks and block uploaded to blockchain network
