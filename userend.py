@@ -1,4 +1,7 @@
 import hashlib
+import datetime
+import random
+import math
 
 class Transaction():
 
@@ -7,7 +10,7 @@ class Transaction():
         self.recipient_address = recipient_address
         self.amount = amount
         self.transaction_fee = fee
-        self.timestamp = None
+        self.timestamp = datetime.now().strftime("%H:%M:%S")
         self.transactionID = None
         self.digital_signature = None
 
@@ -63,4 +66,34 @@ class Wallet():
 
     def SecureKeyStorage(self):
         # methods for securely storing the private key
+        pass
+
+class RSA:
+    
+    def is_primese(self, n):
+        # check if a number is prime
+        pass
+
+    def generate_prime(self, bits):
+        # generate prime number with given amount of bits
+        pass
+
+    def gcd(self, a, b):
+        # calculate greatest common divisor of a and b
+        pass
+
+    def modinv(self, a, m):
+        # calculte modular multiplicative inverse (extended Euclidean alorithm)
+        pass
+
+    def generate_keypair(self, bits):
+        # generate the mathematically linked public key and private key with given amount of bits
+        pass
+
+    def encrypt(self, message, private_key):
+        # encrypt a message with the private key using RSA
+        pass
+
+    def decrypt(self, ciphertext, public_key):
+        # decrpy an RSA encrypted ciphertext with the public key, returning the original message
         pass
