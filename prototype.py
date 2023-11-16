@@ -150,27 +150,137 @@ class Transaction():
             f"transactionID={self.transactionID}, "
             f"digital_signature={self.digital_signature})"
         )
+    
+class TransactionDatabase:
+    pass
 
 
-'''Testing'''
+'''Testing User-end'''
 
 '''User Creation'''
-Me = Wallet()
-Me.generate_keypair()
-# print(Me.public_key)
-# print(Me.private_key)
+# Me = Wallet()
+# Me.generate_keypair()
+# # print(Me.public_key)
+# # print(Me.private_key)
 
-You = Wallet()
-You.generate_keypair()
+# You = Wallet()
+# You.generate_keypair()
 
 '''Transaction between Users'''
 
-NewTransaction = Me.create_transaction(You, 5) # sending transaction
-print(NewTransaction.validate_transaction()) # validating transaction
-print(repr(NewTransaction)) # string representation of transaction (digital signature is very large)
+# NewTransaction = Me.create_transaction(You, 5) # sending transaction
+# print(NewTransaction.validate_transaction()) # validating transaction
+# print(repr(NewTransaction)) # string representation of transaction (digital signature is very large)
 
-class MerkleTree:
-    pass
+class ExampleDataset: # for testing merkle tree functionality and behaviour of transaction objects 
+    def __init__(self, length):
+        self.dataset = []
+        self.length = length # desired length of example dataset
+
+    def data_gen(self): # generate single item of data (random integer in place of transactions)
+            data = random.randint(0, 9)
+            return data
+
+    def set(self): # generate dataset 
+        while len(self.dataset) < self.length:
+            data = self.data_gen()
+            self.dataset.append(data)
+        return self.dataset
+    
+    def item_transfer(self): # transfer element out of dataset
+        length = len(self.dataset)
+        index = random.randint(0, length - 1)
+        return self.dataset.pop(index)
+class TreeNode: # node class to store all transactions individually in nodes, merkle tree is made up of these nodes through aggregation
+    def __init__(self, dataset):
+        self.dataset = dataset
+        self.node = []
+        self.fill()
+        self.content = self.node[0]
+
+    def fill(self): # take one element of data from dataset and form node (hashed)
+        self.item = self.dataset.item_transfer() # pops (returns) random element out of dataset
+        self.hash_input = f"{self.item}".encode("utf-8")
+        self.hash = hashlib.sha256(self.hash_input).hexdigest()
+        self.node.append(self.hash)
+
+    def __repr__(self): # string representation of node
+        return f"TreeNode(node_content={self.content})"
+
+class MerkleTree: # allows for integrity checking of data (confirms data has not been tampered with, comparing datasets between nodes to check if they are the same faster, etc)
+    # only root is stored on chain, efficient validation of integrity for comparisons
+    def __init__(self, dataset):
+        self.dataset = dataset
+        self.tree = []
+        self.lvl_count = -1
+        self.leaf_level = self.leaf_lvl()
+        self.merkleRoot = None
+        self.merkle_root()
+
+    def leaf_lvl(self): # generate first level of hashed transactions in pairs  (leaf nodes)
+        if len(self.dataset.dataset) % 2 == 0: # check leaf length is even because merkle trees are a form of binary tree
+            self.nxt_lvl()
+            while len(self.dataset.dataset) > 0: # generate leaf nodes, append to leaf level until dataset is empty
+                leaf_node = repr(TreeNode(self.dataset))
+                self.tree[self.lvl_count].append(leaf_node)
+        else: # duplicate last element in dataset and add to level to make length even
+            duplicate = self.dataset.dataset[-1] 
+            self.dataset.dataset.append(duplicate)
+            self.leaf_lvl() 
+        return self.tree[0]
+
+    def nxt_lvl(self): # generate next level in tree
+            self.nxt = []
+            self.tree.append(self.nxt)
+            self.lvl_count += 1
+            return self.lvl_count # returns incremented lvl count for lvl count reassignment
+        
+    
+    def merkle_root(self):
+        transfer = []
+        i_count = 0
+        for i in self.tree[-1]: # generate parent nodes from child nodes of current level
+            i_count += 1
+            if i_count % 2 == 0:
+                transfer.append([self.tree[-1][(self.tree[-1].index(i))-1], i])
+            else:
+                pass
+
+        self.nxt_lvl() # generate the next level in tree
+
+        for pair in transfer: # fill next level with the generated parent nodes
+            hash_input = (str(pair[0]) + str(pair[1])).encode("utf-8")
+            parent_node = hashlib.sha256(hash_input).hexdigest()
+            self.tree[self.lvl_count].append(parent_node)
+        for pair in transfer:
+            transfer.pop(transfer.index(pair)) # empty transfer
+
+        if len(self.tree[-1]) > 1:
+            self.merkle_root() # recursisely generate next level
+
+        else: # merkle root has been reached
+            root = (self.tree[self.lvl_count][0])
+            self.merkleRoot = root
+            return root
+        
+
+'''Testing Merkle Tree'''
+
+ExDS = ExampleDataset(8) # create dataset with 8 places for elements
+ExDS.set() # generate random integers between 0 and 9 inclusive for dataset
+print(ExDS.dataset)
+
+ExMerkleTree = MerkleTree(ExDS) # generate merkle tree from dataset
+print(ExMerkleTree.merkleRoot) # print root of the merkle tree
+
+'''Testing Merkle Tree (Odd length leaf layer of tree)'''
+Ex2DS = ExampleDataset(9) # create dataset with 8 places for elements
+Ex2DS.set() # generate random integers between 0 and 9 inclusive for dataset
+print(Ex2DS.dataset)
+
+Ex2MerkleTree = MerkleTree(Ex2DS) # generate merkle tree from dataset
+print(Ex2MerkleTree.tree)
+print(Ex2MerkleTree.merkleRoot) # print root of the merkle tree
 
 class Block:
     pass
