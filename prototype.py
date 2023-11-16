@@ -1,11 +1,11 @@
 import hashlib
-import datetime
+from datetime import datetime
 import math
 import random
 
 class RSA:
     def __init__(self, key_length=1024):
-        self.key_length = key_length
+        self.key_length = key_length # desired length of keys (longer keys are more computationally intensive to crack)
 
     def is_prime(self, n, k=5):
         """Miller-Rabin primality test."""
@@ -36,7 +36,7 @@ class RSA:
 
     def generate_prime(self, bits):
         """Generate a random prime number with the specified number of bits."""
-        while True:
+        while True: # generate random numbers until the number passes Miller-Rabin primality test
             num = random.getrandbits(bits)
             if self.is_prime(num):
                 return num
@@ -92,16 +92,12 @@ class Wallet:
     # generate public and private keys
         self.public_key, self.private_key = RSA().generate_keys()
 
-    def create_transaction(self, recipient_pk, amount):
-        transaction = Transaction(self.public_key, recipient_pk, amount, self.sign_transaction(transaction.transactionID))
-
-    def sign_transaction(self, transactionID):
-    # create digital signature on transaction
-        '''encryption for signing transactions'''
-        cipher_text = [pow(ord(char), self.private_key[0], self.private_key[1]) for char in transactionID] # pow function is exponentiation
-        return cipher_text
+    def create_transaction(self, recipient_wallet, amount):
+        recipient_pk = recipient_wallet.reveal_pk()
+        transaction = Transaction(self.public_key, recipient_pk, amount, self.private_key) # automatically signs transaction
+        return transaction
     
-    def ValidateTransaction(self, broadcaster, digital_signature, transactionID):
+    def validate_transaction(self, broadcaster, digital_signature, transactionID):
     # check if user has sufficient funds, verify signature
         broadcaster_pk = broadcaster.public_key
         plain_text = ''.join([chr(pow(char, broadcaster_pk[0], broadcaster_pk[1])) for char in digital_signature]) # pow function is exponentiation
@@ -109,25 +105,72 @@ class Wallet:
             return True
         else:
             return False
+        
+    def reveal_pk(self):
+        return self.public_key
 
     # check balance
 
 class Transaction():
 
-    def __init__(self, sender_address, recipient_address, amount, digital_signature):
-        self.sender_address = sender_address
-        self.recipient_address = recipient_address
+    def __init__(self, sender_pk, recipient_pk, amount, private_key):
+        self.sender_pk = sender_pk
+        self.recipient_pk = recipient_pk
         self.amount = amount
         self.timestamp = datetime.now().strftime("%H:%M:%S")
-        self.transactionID = self.CalculateTransactionID()
-        self.digital_signature = digital_signature
+        self.transactionID = self.calculate_transactionID()
+        self.digital_signature = self.sign_transaction(private_key)
 
-    def CalculateTransactionID(self):
+    def calculate_transactionID(self):
         # Calculate hash of the transaction's contents to represent transaction when referenced on blockchain
-        transaction_data = f"{self.sender_address}{self.recipient_address}{self.amount}{self.timestamp}"
-        transactionID = hashlib.sha256(transaction_data).hexdigest()
+        transaction_data = f"{self.sender_pk}{self.recipient_pk}{self.amount}{self.timestamp}"
+        transactionID = hashlib.sha256(transaction_data.encode('utf-8')).hexdigest() # encoded -> hashed (binary) -> converted to hexadecimal
         return transactionID
+    
+    def sign_transaction(self, private_key):
+        '''encryption for signing transactions'''
+        digital_signature = [pow(ord(char), private_key[0], private_key[1]) for char in self.transactionID] # pow function is exponentiation
+        return digital_signature
+    
+    def validate_transaction(self):
+        '''decryption for verifying digital signatures, and checking if user has sufficient funds'''
+        # decrypt the encrypted transaction ID and compare to transaction ID of the transaction to see if decryption worked (keys are linked)
+        decryption = ''.join([chr(pow(char, self.sender_pk[0], self.sender_pk[1])) for char in self.digital_signature]) # pow function is exponentiation
+        if decryption == self.transactionID:
+            return True
+        else:
+            return False
         
+    def __repr__(self):
+        return (
+            f"Transaction(sender_pk={self.sender_pk}, "
+            f"recipient_pk={self.recipient_pk}, "
+            f"amount={self.amount}, "
+            f"timestamp={self.timestamp}, "
+            f"transactionID={self.transactionID}, "
+            f"digital_signature={self.digital_signature})"
+        )
+
+
+'''Testing'''
+
+'''User Creation'''
+Me = Wallet()
+Me.generate_keypair()
+# print(Me.public_key)
+# print(Me.private_key)
+
+You = Wallet()
+You.generate_keypair()
+
+'''Transaction between Users'''
+
+NewTransaction = Me.create_transaction(You, 5) # sending transaction
+print(NewTransaction.validate_transaction()) # validating transaction
+print(repr(NewTransaction)) # string representation of transaction (digital signature is very large)
+
+class MerkleTree:
+    pass
 
 class Block:
     pass
