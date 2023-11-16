@@ -9,7 +9,6 @@ class Transaction():
         self.sender_address = sender_address
         self.recipient_address = recipient_address
         self.amount = amount
-        self.transaction_fee = fee
         self.timestamp = datetime.now().strftime("%H:%M:%S")
         self.transactionID = None
         self.digital_signature = None
@@ -95,5 +94,5 @@ class RSA:
         pass
 
     def decrypt(self, ciphertext, public_key):
-        # decrpy an RSA encrypted ciphertext with the public key, returning the original message
+        # decrypt an RSA encrypted ciphertext with the public key, returning the original message
         pass
