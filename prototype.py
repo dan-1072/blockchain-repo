@@ -83,9 +83,7 @@ class RSA:
         return plain_text
 
 class Wallet:
-    # public key
-    # private key
-    # balance
+
     def __init__(self):
         self.public_key = None
         self._private_key = None
@@ -153,133 +151,99 @@ class Transaction():
             f"transactionID={self.transactionID}, "
             f"digital_signature={self.digital_signature})"
         )
+        
+class MerkleNode:
+    '''represents one node made up of the hash of two concatenated child nodes'''
+    def __init__(self, left_node, right_node, hash_value): # tree is made by merkle nodes linking to eachother through attributes
+        self.left_node = left_node
+        self.right_node = right_node
+        self.hash = hash_value
     
-class TransactionDatabase:
-    pass
-
-
-class ExampleDataset: # for testing merkle tree functionality and behaviour of transaction objects 
-    def __init__(self, length):
-        self.dataset = []
-        self.length = length # desired length of example dataset
-
-    def get_dataset(self):
-        return self.dataset
-
-    def data_gen(self): # generate single item of data (random integer in place of transactions)
-            data = random.randint(0, 9)
-            return data
-
-    def set(self): # generate dataset 
-        while len(self.dataset) < self.length:
-            data = self.data_gen()
-            self.dataset.append(data)
-        return self.dataset
+    def get_hash(self):
+        return self.hash
     
-class TreeNode: # node class to store all transactions individually in nodes, merkle tree is made up of these nodes through aggregation
+class MerkleTree:
+
     def __init__(self, dataset):
         self.dataset = dataset
-        self.node = []
-        self.fill()
-        self.content = self.node[0]
+        self.tree = self.build_tree()
+        self.root = self.get_root()
+
+    def calculate_hash(self, left, right): # may be used to make leaf nodes (left and right are from dataset) or other nodes (L and R are hashes)
+        '''takes two elements, converts them to strings, concatenates them, and calculates the hash of this concatenation'''
+        hash_input = str(left) + str(right)
+        hashed = hashlib.sha256(hash_input.encode('utf-8')).hexdigest()
+        return hashed
+
+    def build_tree(self):
+        '''builds the merkle tree of merkle nodes, providing a merkle root representing the hash of all nodes'''
+        leaf_nodes = []
+        # add hashed dataset values into leaf level in string form
+        for data in self.dataset:
+            hash_input = str(data) # convert to string
+            hashed_data = hashlib.sha256(hash_input.encode()).hexdigest()
+            leaf_nodes.append(hashed_data)
+
+        tree = [leaf_nodes]
+        # generate parent nodes from child nodes in previous level
+        while len(tree[-1]) > 1: # generate next level until the root is reached  (level of length 1)
+            parent_nodes = []
+            for node in tree[-1][0:len(tree[-1]):2]: # tree[-1] is the current level of the tree
+                left_node = node
+                if left_node != tree[-1][-1]: # if left node isnt the last node then there is a right node
+                    right_index = tree[-1].index(node) + 1
+                    right_node = tree[-1][right_index]
+                else:
+                    right_node = None
+                parent_hash = self.calculate_hash(left_node, right_node)
+                parent = MerkleNode(left_node, right_node, parent_hash)
+                parent_nodes.append(parent.get_hash())
+            tree.append(parent_nodes)
+        return(tree)
     
-    def item_transfer(self): # transfer element out of dataset
-        length = len(self.dataset)
-        index = random.randint(0, length - 1)
-        return self.dataset.pop(index)
-
-    def fill(self): # take one element of data from dataset and form node (hashed)
-        self.item = self.item_transfer() # pops (returns) random element out of dataset
-        self.hash_input = f"{self.item}".encode("utf-8")
-        self.hash = hashlib.sha256(self.hash_input).hexdigest()
-        self.node.append(self.hash)
-
-    def __repr__(self): # string representation of node
-        return f"TreeNode(node_content={self.content})"
-
-class MerkleTree: # allows for integrity checking of data (confirms data has not been tampered with, comparing datasets between nodes to check if they are the same faster, etc)
-    # only root is stored on chain, efficient validation of integrity for comparisons
-    def __init__(self, dataset):
-        self.dataset = dataset
-        self.tree = []
-        self.lvl_count = -1
-        self.leaf_level = self.leaf_lvl()
-        self.merkleRoot = None
-        self.merkle_root()
-
-    def leaf_lvl(self): # generate first level of hashed transactions in pairs  (leaf nodes)
-        print(self.dataset)
-        if len(self.dataset) % 2 == 0: # check leaf length is even because merkle trees are a form of binary tree
-            self.nxt_lvl()
-            while len(self.dataset) > 0: # generate leaf nodes, append to leaf level until dataset is empty
-                leaf_node = repr(TreeNode(self.dataset))
-                self.tree[self.lvl_count].append(leaf_node)
-        else: # duplicate last element in dataset and add to level to make length even
-            duplicate = self.dataset[-1] 
-            self.dataset.append(duplicate)
-            self.leaf_lvl() 
-        return self.tree[0]
-
-    def nxt_lvl(self): # generate next level in tree
-            self.nxt = []
-            self.tree.append(self.nxt)
-            self.lvl_count += 1
-            return self.lvl_count # returns incremented lvl count for lvl count reassignment
-        
+    def get_root(self):
+        root = self.tree[-1][0]
+        return root
     
-    def merkle_root(self):
-        transfer = []
-        i_count = 0
-        for i in self.tree[-1]: # generate parent nodes from child nodes of current level
-            i_count += 1
-            if i_count % 2 == 0:
-                transfer.append([self.tree[-1][(self.tree[-1].index(i))-1], i])
-            else:
-                pass
-
-        if len(self.tree[-1]) != 1: # if root node has not been reached
-            self.nxt_lvl() # generate the next level in tree
-
-        for pair in transfer: # fill next level with the generated parent nodes
-            hash_input = (str(pair[0]) + str(pair[1])).encode("utf-8")
-            parent_node = hashlib.sha256(hash_input).hexdigest() # generate parent node
-            self.tree[self.lvl_count].append(parent_node)
-        for pair in transfer:
-            transfer.pop(transfer.index(pair)) # empty transfer
-
-        if len(self.tree[-1]) > 1:
-            self.merkle_root() # recursisely generate next level
-
-        else: # merkle root has been reached
-            print(self.tree)
-            print(self.tree[self.lvl_count])
-            root = (self.tree[self.lvl_count][0]) # index of root node
-            self.merkleRoot = root
-            return root
-        
-    def generate_proof(self, target_node):
+    def merkle_proof(self, target_node):
+        '''generates the sibling nodes that are in the path the target node takes to the root'''
+        target_node = hashlib.sha256(str(target_node).encode('utf-8')).hexdigest() # get target node into its leaf level form
         proof_path = []
-        level = self.tree[-1]
-        index = level.index(target_node) # index of the leaf node of choice
-        
-        if target_node not in level: # confirms target node is not in tree
-            raise ValueError("Target node not found in the Merkle Tree.")
-
-        while index > 0: # traverses Merkle tree along path a leaf node takes to reach the root node, picking up sibling nodes that are used
-            sibling_index = index - 1 if index % 2 == 1 else index + 1 # index of a sibling node that is used for hash of parent node in path
-            sibling_node = level[sibling_index]
-            proof_path.append(sibling_node)
-            index = (index - 1) // 2 
-
-        return MerkleProof(proof_path, target_node)
+        root_reached = False 
+        current_level = 0 # index of current level 
+        while root_reached == False: # traverse tree from target node to root 
+            # pick up sibling nodes during traversal and add to proof path
+            for node in self.tree[current_level][0:len(self.tree[current_level]):2]: # look at every other node (first node of a pair) 
+                left_node = node
+                if self.tree[current_level][-1] != node: # if left node isnt last node in tree
+                    right_index = self.tree[current_level].index(left_node) + 1 # one index after left node in the current level
+                    right_node = self.tree[current_level][right_index] 
+                # check if target node is either of the nodes just defined in the pair
+                if left_node == target_node: 
+                    proof_path.append(right_node)
+                    target_node = self.calculate_hash(left_node, right_node) # target node for next level (hash of child nodes)
+                elif right_node == target_node:
+                    proof_path.append(left_node)
+                    target_node = self.calculate_hash(left_node, right_node) # target node for next level (hash of child nodes)
+            if len(self.tree[current_level + 1]) == 1: # if the next level is the root 
+                root_reached = True # dont search next level (not needed for proof path)
+            else:
+                current_level += 1 # search next level
+        return proof_path
     
-class MerkleProof: # if the desired leaf node is in the tree, the merkle proof returns the path it takes to reach the root
-    def __init__(self, path, target_node):
-        self.path = path  # List of hashes along the path
-        self.target_node = target_node  # The hash of the target node
-
-    def __repr__(self):
-        return f"MerkleProof(path={self.path}, target_node={self.target_node})"
+    def verify_proof(self, target_node, proof):
+        '''takes a proof path and reconstructs the root with it, comparing the roots to verify if the proof is valid, verifying the target node'''
+        target_node = hashlib.sha256(str(target_node).encode('utf-8')).hexdigest() # get target node into its leaf level form
+        for node in proof: # contatenate and hash target node with proof node, concatenate and hash the previous hash with next proof node, so on
+            current_level = proof.index(node) # works because there is only one sibling node per level in the proof path
+            if self.tree[current_level].index(node) % 2 == 0: # all left childs of pairs have even node index in level 
+                target_node = self.calculate_hash(node, target_node) # node is left child
+            elif self.tree[current_level].index(node) % 2 == 1: # all right childs of pairs have odd node index in level
+                target_node = self.calculate_hash(target_node, node) # node is right child
+        if target_node == self.root: # check if root generated from proof is equal to actual root
+            return True
+        else:
+            return False
 
 class Block:
     '''basic structure of a block, block manipulation methods, block mining, block validation'''
@@ -290,7 +254,7 @@ class Block:
         if blockchain.get_chain() == []:
             self.previous_hash = 0 # genesis block creation
         else:
-            self.previous_hash = blockchain.get_chain()[-1].get_block_hash() # block hash of newest block in chain
+            self.previous_hash = blockchain.get_chain()[-1].get_block_hash() # block hash of last block in chain
         self.timestamp = datetime.now().strftime("%H:%M:%S")
         self.merkle_root = self.calculate_merkle_root() # used to check if a specific transaction is in the block efficiently (merkle proof)
         self.nonce = 0 # incremented for mining
@@ -335,7 +299,7 @@ class Block:
             check.append(False)
         def validate_transactions(): # validate each transaction (verifying digital signatures)
             for transaction in self.transactions:
-                check.append(transaction.validate_transactions())
+                check.append(transaction.validate_transaction())
         validate_transactions()
         # transaction double spending prevented (no duplicate transactions)
 
@@ -349,13 +313,20 @@ class Block:
 
     def adjust_difficulty(self, difficulty):
         self.difficulty_target = difficulty
+    
+    def transaction_check(self): # check if transaction is in the block efficiently (merkle proof)
+        pass
 
 class Blockchain():
     # the data structure that all nodes base their copy of the blockchain off, and manipulating incoming / outgoing messages of the network
 
     def __init__(self):
         self.chain = []
-        self.transaction_pool = []
+        self.transaction_pool = [] # unconfirmed, verified transactions
+
+    def add_transaction(self, transaction):
+        self.transaction_pool.append(transaction)
+
 
     def genesis_block(self, issuance): # issuance is the first amount of currency the program starts with
         genesis_block = Block(issuance, self) # generates the first currency on the program and has no previous hash so it must be hardcoded in
@@ -375,6 +346,7 @@ class Blockchain():
     def mine_block(self, block):
         # initiate mining process, solving hash puzzle (called by miner node)
         block.calculate_block_hash()
+        self.transaction_pool = [] # empty transaction pool
         return block
 
     def confirm_transaction(self, transaction): # constantly run by network for each transactions
@@ -388,62 +360,63 @@ class Blockchain():
     
     def get_difficulty_target(self):
         # listen to difficulty target from network
-        return 4 # example for prototype
+        return 1 # example for prototype
+    
+class ExampleDataset: 
+    '''generate example datasets in place of transactions for testing'''
+    def __init__(self, length):
+        self.dataset = []
+        self.length = length # desired length of example dataset
+        self.data_gen()
+
+    def get_dataset(self):
+        return self.dataset
+
+    def data_gen(self): # generate data (unique strings in place of transactions)
+        for i in range((self.length + 1)):
+            string = f'Data{i}'
+            self.dataset.append(string)
 
 '''Block & Blockchain Testing''' 
 
 # blockchain and genesis block creation
-Blockchain1 = Blockchain()
-genesis_dataset = ExampleDataset(8).set()
-genesis_block = Blockchain1.genesis_block(genesis_dataset)
-Blockchain1.add_block(genesis_block) # create the first block and add it to blockchain
-print(Blockchain1.get_chain())
+# Blockchain1 = Blockchain()
+# genesis_dataset = ExampleDataset(8).set()
+# genesis_block = Blockchain1.genesis_block(genesis_dataset)
+# Blockchain1.add_block(genesis_block) # create the first block and add it to blockchain
+# print(Blockchain1.get_chain())
 
-# block mining and creation
-ExDataset1 = ExampleDataset(8).set()
-block01 = Block(ExDataset1, Blockchain1) # create the block
-block01.calculate_block_hash() # mine the block
+# # block mining and creation
+# ExDataset1 = ExampleDataset(8).set()
+# block01 = Block(ExDataset1, Blockchain1) # create the block
+# block01.calculate_block_hash() # mine the block
 
-# adding block to the blockchain
-print(block01.is_block_valid()) # check validity
-Blockchain1.add_block(block01) # add block
-print(Blockchain1.get_chain()) # show chain
+# # adding block to the blockchain
+# print(block01.is_block_valid()) # check validity
+# Blockchain1.add_block(block01) # add block
+# print(Blockchain1.get_chain()) # show chain
 
-'''Testing Merkle Tree'''
+'''Merkle Tree Testing'''
 
-ExDS = ExampleDataset(8).set() # create dataset with 8 randomly generated numbers between 0 and 9 inclusive
-print(ExDS)
-
-ExMerkleTree = MerkleTree(ExDS) # generate merkle tree from dataset
-print(ExMerkleTree.merkleRoot) # print root of the merkle tree
-
-'''Testing Merkle Tree (Odd length leaf layer of tree)'''
-Ex2DS = ExampleDataset(9).set() # create dataset with 9 randomly generated numebrs
-print(Ex2DS)
-
-Ex2MerkleTree = MerkleTree(Ex2DS) # generate merkle tree from dataset
-print(Ex2MerkleTree.tree)
-print(Ex2MerkleTree.merkleRoot) # print root of the merkle tree
-
-
-'''Merkle Proof Testing'''
-
-# test the blockchains ways of preventing attacks 
-
+dataset1 = ExampleDataset(16).get_dataset() # generate example dataset
+tree1 = MerkleTree(dataset1) # generate merkle tree from example dataset
+print(tree1.tree)
+proof = tree1.merkle_proof("Data3") # generate proof path given a target node
+print(proof)
+print(tree1.verify_proof("Data3", proof)) # verify that target node is in merkle tree through proof path
 
 '''Wallet Generation & Transaction Testing'''
 
-'''User Creation'''
+# user generation
 # Me = Wallet()
 # Me.generate_keypair()
-# # print(Me.public_key)
-# # print(Me.private_key)
+# print(Me.public_key)
+# print(Me.private_key)
 
 # You = Wallet()
 # You.generate_keypair()
 
-'''Transaction between Users'''
-
+# # transaction between users
 # NewTransaction = Me.create_transaction(You, 5) # sending transaction
 # print(NewTransaction.validate_transaction()) # validating transaction
 # print(repr(NewTransaction)) # string representation of transaction (digital signature is very large)
@@ -454,8 +427,8 @@ print(Ex2MerkleTree.merkleRoot) # print root of the merkle tree
 
 # user makes transaction
 
-# transaction is verified and added to transaction pool
+# transaction is verified and added to transaction pool (defence)
 
-# block is created with transaction
+# block is created with transaction (defence)
 
-# block is verified and added to blockchain
+# block is verified and added to blockchain (defence)
