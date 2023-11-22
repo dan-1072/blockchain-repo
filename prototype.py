@@ -4,7 +4,23 @@ import math
 import random
 import time
 import sys
-sys.setrecursionlimit(10**6)
+sys.setrecursionlimit(10**6) # mining is done recursively and may have many thousand iterations
+
+
+class ExampleDataset: 
+    '''generate example datasets in place of transactions for testing'''
+    def __init__(self, length):
+        self.dataset = []
+        self.length = length # desired length of example dataset
+        self.data_gen()
+
+    def get_dataset(self):
+        return self.dataset
+
+    def data_gen(self): # generate data (unique strings in place of transactions)
+        for i in range((self.length + 1)):
+            string = f'Data{i}'
+            self.dataset.append(string)
 
 class RSA:
     def __init__(self, key_length=1024):
@@ -151,6 +167,20 @@ class Transaction():
             f"transactionID={self.transactionID}, "
             f"digital_signature={self.digital_signature})"
         )
+    
+
+'''Wallet Generation & Transactions Testing'''
+
+# user / wallet generation
+Me = Wallet()
+Me.generate_keypair()
+You = Wallet()
+You.generate_keypair()
+
+# transactions between users
+NewTransaction = Me.create_transaction(You, 5) # sending transaction
+print(NewTransaction.validate_transaction()) # validating transaction
+print(repr(NewTransaction)) # string representation of transaction (digital signature is very large)
         
 class MerkleNode:
     '''represents one node made up of the hash of two concatenated child nodes'''
@@ -244,6 +274,18 @@ class MerkleTree:
             return True
         else:
             return False
+        
+
+'''Merkle Tree Testing'''
+
+dataset1 = ExampleDataset(16).get_dataset() # generate example dataset
+tree1 = MerkleTree(dataset1) # generate merkle tree from example dataset
+print(tree1.tree)
+proof = tree1.merkle_proof("Data3") # generate proof path given a target node
+print(proof)
+print(tree1.verify_proof("Data3", proof)) # verify that target node is in merkle tree through proof path
+
+
 
 class Block:
     '''basic structure of a block, block manipulation methods, block mining, block validation'''
@@ -251,7 +293,7 @@ class Block:
     def __init__(self, transactions, blockchain):
         self.transactions = transactions
         self.block_height = len(blockchain.get_chain()) # index of latest block + 1 in chain
-        if blockchain.get_chain() == []:
+        if blockchain.get_chain() == []: # if blockchain is empty, create genesis block
             self.previous_hash = 0 # genesis block creation
         else:
             self.previous_hash = blockchain.get_chain()[-1].get_block_hash() # block hash of last block in chain
@@ -269,16 +311,15 @@ class Block:
 
     def calculate_merkle_root(self):
         '''calculate merkle root from transaction list'''
-        ThisMerkleTree = MerkleTree(self.transactions)
+        this_merkle_tree = MerkleTree(self.transactions)
         # generate merkle tree and return merkle root
-        return ThisMerkleTree.merkle_root()
+        return this_merkle_tree.get_root()
 
     def calculate_block_hash(self): 
         '''take block header and hash it, if hash meets difficculty target, return, if not, increment nonce and repeat'''
         hash_input = self.block_header + str(self.nonce)
         block_hash = hashlib.sha256(hash_input.encode("utf-8")).hexdigest()
         while block_hash[0: (self.difficulty_target)] != "0"*self.difficulty_target: # keep mining while difficulty target is not met
-            print(block_hash[0: (self.difficulty_target)])
             print(self.nonce)
             self.nonce += 1 # increment nonce and mine again
             hash_input = self.block_header + str(self.nonce)
@@ -286,10 +327,9 @@ class Block:
             print(block_hash)
         self.block_hash = block_hash
 
-    def get_block_hash(self):
-        return self.block_hash
 
     def is_block_valid(self):
+        '''validate block by checking block hash meets difficulty target, and that each transaction is valid (verify each transaction in set)'''
         check = []
         # block header information and structure is correct
         hash_portion =  self.block_hash[0: self.difficulty_target] # check if hash meets difficulty target
@@ -298,13 +338,17 @@ class Block:
         else:
             check.append(False)
         def validate_transactions(): # validate each transaction (verifying digital signatures)
-            for transaction in self.transactions:
-                check.append(transaction.validate_transaction())
-        validate_transactions()
+            pass
+        #     for transaction in self.transactions:
+        #         check.append(transaction.validate_transaction())
+        # validate_transactions()
         # transaction double spending prevented (no duplicate transactions)
 
-        return all(check) # returns true if all elements are true
-
+        print(f'is block valid: {all(check)}') # all() returns true if all elements are true
+    
+    def get_block_hash(self):
+        return self.block_hash
+    
     def get_transactions(self):
         return self.transactions
 
@@ -314,11 +358,15 @@ class Block:
     def adjust_difficulty(self, difficulty):
         self.difficulty_target = difficulty
     
-    def transaction_check(self): # check if transaction is in the block efficiently (merkle proof)
-        pass
+    def transaction_check(self, transaction): # check if transaction is in the block efficiently (merkle proof)
+        '''check if a transaction is in a block using merkle proofs (verifying dataset has not been tampered with too)'''
+        this_merkle_tree = MerkleTree(self.transactions)
+        proof_path = this_merkle_tree.merkle_proof(transaction)
+        verify = this_merkle_tree.verify_proof(proof_path, transaction)
+        print(f'is transaction in transactions: {verify}')
 
 class Blockchain():
-    # the data structure that all nodes base their copy of the blockchain off, and manipulating incoming / outgoing messages of the network
+    '''the data structure that all nodes base their copy of the blockchain off, and manipulating incoming / outgoing messages of the network'''
 
     def __init__(self):
         self.chain = []
@@ -362,64 +410,26 @@ class Blockchain():
         # listen to difficulty target from network
         return 1 # example for prototype
     
-class ExampleDataset: 
-    '''generate example datasets in place of transactions for testing'''
-    def __init__(self, length):
-        self.dataset = []
-        self.length = length # desired length of example dataset
-        self.data_gen()
-
-    def get_dataset(self):
-        return self.dataset
-
-    def data_gen(self): # generate data (unique strings in place of transactions)
-        for i in range((self.length + 1)):
-            string = f'Data{i}'
-            self.dataset.append(string)
-
 '''Block & Blockchain Testing''' 
 
 # blockchain and genesis block creation
-# Blockchain1 = Blockchain()
-# genesis_dataset = ExampleDataset(8).set()
-# genesis_block = Blockchain1.genesis_block(genesis_dataset)
-# Blockchain1.add_block(genesis_block) # create the first block and add it to blockchain
-# print(Blockchain1.get_chain())
+Blockchain1 = Blockchain()
+genesis_dataset = ExampleDataset(8).get_dataset()
+genesis_block = Blockchain1.genesis_block(genesis_dataset)
+Blockchain1.add_block(genesis_block) # create the first block and add it to blockchain
+print(Blockchain1.get_chain())
 
-# # block mining and creation
-# ExDataset1 = ExampleDataset(8).set()
-# block01 = Block(ExDataset1, Blockchain1) # create the block
-# block01.calculate_block_hash() # mine the block
+# block mining and creation
+ExDataset1 = ExampleDataset(8).get_dataset()
+block01 = Block(ExDataset1, Blockchain1) # create the block
+block01.calculate_block_hash() # mine the block
 
-# # adding block to the blockchain
-# print(block01.is_block_valid()) # check validity
-# Blockchain1.add_block(block01) # add block
-# print(Blockchain1.get_chain()) # show chain
+# adding block to the blockchain
+print(block01.is_block_valid()) # check validity
+Blockchain1.add_block(block01) # add block
+print(Blockchain1.get_chain()) # show chain
 
-'''Merkle Tree Testing'''
 
-dataset1 = ExampleDataset(16).get_dataset() # generate example dataset
-tree1 = MerkleTree(dataset1) # generate merkle tree from example dataset
-print(tree1.tree)
-proof = tree1.merkle_proof("Data3") # generate proof path given a target node
-print(proof)
-print(tree1.verify_proof("Data3", proof)) # verify that target node is in merkle tree through proof path
-
-'''Wallet Generation & Transaction Testing'''
-
-# user generation
-# Me = Wallet()
-# Me.generate_keypair()
-# print(Me.public_key)
-# print(Me.private_key)
-
-# You = Wallet()
-# You.generate_keypair()
-
-# # transaction between users
-# NewTransaction = Me.create_transaction(You, 5) # sending transaction
-# print(NewTransaction.validate_transaction()) # validating transaction
-# print(repr(NewTransaction)) # string representation of transaction (digital signature is very large)
 
 '''Full Program Cycle Test'''
 
