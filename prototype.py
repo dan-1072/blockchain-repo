@@ -4,7 +4,7 @@ import math
 import random
 import time
 import sys
-sys.setrecursionlimit(10**6) # mining is done recursively and may have many thousand iterations
+sys.setrecursionlimit(10**6) # mining is done recursively and may have many tens of thousands of recursions
 
 
 class ExampleDataset: 
@@ -23,6 +23,8 @@ class ExampleDataset:
             self.dataset.append(string)
 
 class RSA:
+    '''contains functions for implementing RSA encryption to generate a public-private key pair for wallets'''
+    
     def __init__(self, key_length=1024):
         self.key_length = key_length # desired length of keys (longer keys are more computationally intensive to crack)
 
@@ -103,10 +105,11 @@ class Wallet:
     def __init__(self):
         self.public_key = None
         self._private_key = None
-        self.balance = 0
+        self.transactions = []
+        self._balance = 0
 
     def generate_keypair(self):
-    # generate public and private keys
+        '''generate public and private key pair used to represent the user and sign transactions respectively'''
         self.public_key, self.private_key = RSA().generate_keys()
 
     def create_transaction(self, recipient_wallet, amount):
@@ -115,13 +118,42 @@ class Wallet:
         return transaction
     
     def validate_transaction(self, broadcaster, digital_signature, transactionID):
-    # check if user has sufficient funds, verify signature
+        '''verify digital signature, authenticating the user'''
         broadcaster_pk = broadcaster.public_key
         plain_text = ''.join([chr(pow(char, broadcaster_pk[0], broadcaster_pk[1])) for char in digital_signature]) # pow function is exponentiation
         if plain_text == transactionID:
             return True
         else:
             return False
+    
+    def evaluate_balance(self):
+        '''check record of transactions involving wallet and evaluate a final balance'''
+        balance = 0
+        for transaction in self.transactions:
+            if transaction.sender_pk == self.public_key: # the amount from outgoing transactions is deducted from balance
+                balance -= transaction.amount
+            elif transaction.recipient_pk == self.public_key: # the amount from ingoing transactions is added to balance
+                balance += transaction.amount
+        self._balance = balance
+        return balance
+    
+    def sufficient_bal(self, amount):
+        '''check if the user has the sufficient funds to make transaction'''
+        balance = self.evaluate_balance()
+        if balance >= amount:
+            return True
+        elif balance < amount:
+            return False
+        
+    def add_transaction(self, transaction_obj):
+        self.transactions.append(transaction_obj)
+        
+    def identify_pk(self, pk):
+        if self.public_key == pk:
+            return self
+        
+    def get_bal(self):
+        return self._balance
         
     def reveal_pk(self):
         return self.public_key
@@ -139,7 +171,7 @@ class Transaction():
         self.digital_signature = self.sign_transaction(private_key)
 
     def calculate_transactionID(self):
-        # Calculate hash of the transaction's contents to represent transaction when referenced on blockchain
+        '''Calculate hash of the transaction's contents to represent transaction when referenced on blockchain'''
         transaction_data = f"{self.sender_pk}{self.recipient_pk}{self.amount}{self.timestamp}"
         transactionID = hashlib.sha256(transaction_data.encode('utf-8')).hexdigest() # encoded -> hashed (binary) -> converted to hexadecimal
         return transactionID
@@ -157,6 +189,22 @@ class Transaction():
             return True
         else:
             return False
+    
+    # checking funds and updating records of wallets done through transaction class for ease of validation purposes
+
+    def check_funds(self, sender):
+        '''check if the user has the sufficient funds to make transaction'''
+        check = sender.sufficient_bal(self.amount)
+        return check
+        
+
+    def update_records(self):
+        '''update the list of transactions made for both sender and recipient by finding them through their public keys'''
+        sender_obj = Wallet.identify_pk(self.sender_pk) # find wallets of sender and recipient by checking 
+        receiver_obj = Wallet.identify_pk(self.recipient_pk)
+        
+        sender_obj.add_transaction(self) # update records of sender and recipient
+        receiver_obj.add_transaction(self)
         
     def __repr__(self):
         return (
@@ -177,10 +225,15 @@ Me.generate_keypair()
 You = Wallet()
 You.generate_keypair()
 
-# transactions between users
+# transaction between users
 NewTransaction = Me.create_transaction(You, 5) # sending transaction
-print(NewTransaction.validate_transaction()) # validating transaction
-print(repr(NewTransaction)) # string representation of transaction (digital signature is very large)
+print(NewTransaction) # string representation of transaction (digital signature is very large)
+
+# validating transaction
+
+print(NewTransaction.validate_transaction())
+print(NewTransaction.check_funds(Me)) # will return False as user has balance of 0
+
         
 class MerkleNode:
     '''represents one node made up of the hash of two concatenated child nodes'''
@@ -435,7 +488,15 @@ print(Blockchain1.get_chain()) # show chain
 
 # user is generated
 
+user1 = Wallet()
+user1.generate_keypair()
+
+user2 = Wallet()
+user2.generate_keypair()
+
 # user makes transaction
+
+user1.create_transaction(user2, 5)
 
 # transaction is verified and added to transaction pool (defence)
 
