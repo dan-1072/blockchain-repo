@@ -1,9 +1,12 @@
-import hashlib
-from datetime import datetime
-import math
-import random
-import time
-import sys
+import hashlib # hashiing function (sha-256)
+from datetime import datetime # timestamps in blocks
+import random # example dataset generation
+import time # testing mining times
+import sys # recursion limit changing
+import socket # blockchain network
+import threading # efficient handling of multiple connections between nodes at once
+import pickle # for message serialisation and deserialisation
+import enum # for differentiating between transactions and blocks over broadcasting in the network
 sys.setrecursionlimit(10**6) # mining is done recursively and may have many tens of thousands of recursions
 
 
@@ -24,7 +27,7 @@ class ExampleDataset:
 
 class RSA:
     '''contains functions for implementing RSA encryption to generate a public-private key pair for wallets'''
-    
+
     def __init__(self, key_length=1024):
         self.key_length = key_length # desired length of keys (longer keys are more computationally intensive to crack)
 
@@ -227,11 +230,13 @@ You.generate_keypair()
 
 # transaction between users
 NewTransaction = Me.create_transaction(You, 5) # sending transaction
+print('Example Transaction between 2 Users:')
 print(NewTransaction) # string representation of transaction (digital signature is very large)
 
 # validating transaction
-
+print('Verifying Digital Signature:')
 print(NewTransaction.validate_transaction())
+print('Checking Balances for Sufficient Funds:')
 print(NewTransaction.check_funds(Me)) # will return False as user has balance of 0
 
         
@@ -333,9 +338,12 @@ class MerkleTree:
 
 dataset1 = ExampleDataset(16).get_dataset() # generate example dataset
 tree1 = MerkleTree(dataset1) # generate merkle tree from example dataset
+print('Merkle Tree:')
 print(tree1.tree)
 proof = tree1.merkle_proof("Data3") # generate proof path given a target node
+print('Merkle Proof:')
 print(proof)
+print('Proof Verification:')
 print(tree1.verify_proof("Data3", proof)) # verify that target node is in merkle tree through proof path
 
 
@@ -377,7 +385,6 @@ class Block:
             self.nonce += 1 # increment nonce and mine again
             hash_input = self.block_header + str(self.nonce)
             block_hash = hashlib.sha256(hash_input.encode("utf-8")).hexdigest()
-            print(block_hash)
         self.block_hash = block_hash
 
 
@@ -470,36 +477,183 @@ Blockchain1 = Blockchain()
 genesis_dataset = ExampleDataset(8).get_dataset()
 genesis_block = Blockchain1.genesis_block(genesis_dataset)
 Blockchain1.add_block(genesis_block) # create the first block and add it to blockchain
+print('Chain of Blockchain:')
 print(Blockchain1.get_chain())
 
 # block mining and creation
 ExDataset1 = ExampleDataset(8).get_dataset()
 block01 = Block(ExDataset1, Blockchain1) # create the block
+print('New Block Created')
+print('Mining Iterations:')
 block01.calculate_block_hash() # mine the block
+print('Difficulty Target (1) Met')
 
 # adding block to the blockchain
-print(block01.is_block_valid()) # check validity
+block01.is_block_valid() # check validity
 Blockchain1.add_block(block01) # add block
+print('Show New Chain:')
 print(Blockchain1.get_chain()) # show chain
 
+class MessageType(enum.Enum):
+    '''defines incoming message types over the network, transaction or block, needed to handle serialisation differently'''
+    TRANSACTION = 1
+    BLOCK = 2
+class Node:
+    def __init__(self, host, port):
+        self.host = host
+        self.port = port
+        self.peers = []  # List of connected peers
+        self.server = None
+        self.miner_node = 0
+        self.blockchain = None
+        # nodes also have wallets
+
+    def start(self):
+        '''initialises a server that listens for incoming messages: transactions from users and peer nodes, blocks from peer nodes'''
+        self.server = socket.socket(socket.AF_INET, socket.SOCK_STREAM) # socket used to listen for incoming messages from peer nodes
+        self.server.bind((self.host, self.port))
+        self.server.listen()
+
+        print(f"Node listening on {self.host}:{self.port}")
+
+        while True: # always running until connection is broken
+            client, address = self.server.accept() # block until a connection is established returning a new socket with the peer node
+            print(f"Connection from {address}")
+
+            peer_thread = threading.Thread(target=self.handle_peer, args=(client,)) # threads allow for efficient handling of multiple connections
+            peer_thread.start()
+            self.peers.append(client)
+
+    def handle_peer(self, client):
+        '''manages communication with a connected peer node'''
+        while True:
+            try:
+                data = client.recv(1024) # receives data from connected peer with a max size of 1024 bytes
+                if not data: # checks if the data is empty meaning the connection has been closed by the peer
+                    break
+                message = pickle.loads(data) # deserialise the serialised object
+                self.handle_message(message) # message is handled by handle message method
+            except Exception as e: # closes the connection if there is an error
+                print(f"Error handling peer: {e}")
+                break
+
+    def handle_message(self, message):
+        '''directs received messages to transaction handling or block handling'''
+        if message['type'] == MessageType.TRANSACTION:
+            self.handle_transaction(message['data'])
+        elif message['type'] == MessageType.BLOCK:
+            self.handle_block(message['data'])
+
+    def handle_transaction(self, transaction):
+        '''processes (validates) and adds transaction to the node's copy of the transaction pool'''
+        # validate transaction
+        # adds to transaction pool or rejects transaction
+        print(f"Received transaction: {transaction}")
+
+    def handle_block(self, block):
+        ''' processes (validates) and adds block to the node's copy of the blockchain'''
+        # validates block
+        # adds to chain or rejects block
+        print(f"Received block: {block}")
 
 
-'''Full Program Cycle Test'''
+    def broadcast(self, message):
+        '''broadcast a message to the peer nodes on the network that are listening'''
+        serialised_message = pickle.dumps(message) # serialise the message for more efficient broadcasting 
+        for peer in self.peers: # broadcast to all peer nodes on the network
+            try:
+                peer.send(serialised_message)
+            except Exception as e:
+                print(f"Error broadcasting to peer: {e}")
 
-# user is generated
+    def broadcast_transaction(self, transaction):
+        '''broadcast a transaction to the peer nodes on the network through the broadcast method after specifying object type'''
+        message = {'type': MessageType.TRANSACTION, 'data': transaction} # object type to serialise in broadcast method is transaction
+        self.broadcast(message) # serialise and send the transaction
 
-user1 = Wallet()
-user1.generate_keypair()
+class MinerNode(Node):
+    '''instances of this class can use the methods a typical node can use but they can also broadcast blocks to the network'''
 
-user2 = Wallet()
-user2.generate_keypair()
+    def initialise_miner(self):
+        '''confirm a node is a miner node in the attributes of the node object'''
+        self.mine_node = 1
 
-# user makes transaction
+    def mine_block(self):
+        '''use block methods to mine a block and broadcast it to peer nodes'''
+        pass
 
-user1.create_transaction(user2, 5)
+    def broadcast_block(self, block):
+        '''broadcast a block to the peer nodes on the network through the broadcast method after specifying object type'''
+        message = {'type': MessageType.BLOCK, 'data': block}
+        self.broadcast(message)
 
-# transaction is verified and added to transaction pool (defence)
+'''Network Testing'''
 
-# block is created with transaction (defence)
+# Connect to the regular node
+regular_node = Node('127.0.0.1', 5000)
 
-# block is verified and added to blockchain (defence)
+# Broadcast a transaction from the regular node (example transaction)
+regular_node.broadcast_transaction({'sender': 'User1', 'receiver': 'User2', 'amount': 10})
+
+# Connect to the miner node
+miner_node = MinerNode('127.0.0.1', 5001)
+
+# Broadcast a block from the miner node (example transaction)
+miner_node.broadcast_block({'transactions': [{'sender': 'User1', 'receiver': 'User2', 'amount': 10}], 'previous_hash': 'abc'})
+
+class BlockchainClient:
+    '''Users who do not run nodes interact (making transactions, broadcasting it to the nodes) with the blockchain through a blockchain client'''
+    def __init__(self, host, port):
+        self.host = host
+        self.port = port
+
+    def send_transaction(self, transaction):
+        '''send a transaction to the blockchain network'''
+        try:
+            with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as client_socket: # connect client to peer nodes on network
+                client_socket.connect((self.host, self.port))
+
+                message = {'type': MessageType.TRANSACTION, 'data': transaction} # serialise transaction
+                serialised_message = pickle.dumps(message)
+
+                client_socket.send(serialised_message) # send transaction to network
+
+                print(f"Transaction sent: {transaction}")
+        except Exception as e:
+            print(f"Error sending transaction: {e}")
+
+'''Blockchain Client Testing'''
+
+if __name__ == "__main__":
+    client = BlockchainClient('127.0.0.1', 5000)
+    
+    transaction_data = {'sender': 'Alice', 'receiver': 'Bob', 'amount': 10}
+    client.send_transaction(transaction_data)
+
+'''Full Program Testing'''
+
+# create nodes with their blockchain copies
+# create blockchain client for non-node users
+# create miner nodes to mine blocks
+
+# create users
+# make transactions
+# users broadcast transactions
+
+# node picks up on transactions
+# node handles transaction
+# node broadcasts transaction to peer nodes
+
+# transaction pool is filled
+# miner nodes create blocks
+# miner nodes compete to mine block
+# winning miner broadcasts block to peer nodes
+
+
+'''Edge Case Scenario Testing'''
+
+# invalidated digital signature
+# transaction insufficient funds
+# invalidated block
+# invalidated merkle root
+# fork in the network, fork resolution
