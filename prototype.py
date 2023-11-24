@@ -7,7 +7,9 @@ import socket # blockchain network
 import threading # efficient handling of multiple connections between nodes at once
 import pickle # for message serialisation and deserialisation
 import enum # for differentiating between transactions and blocks over broadcasting in the network
+import math # used for logarithms to calculate difficulty target
 sys.setrecursionlimit(10**6) # mining is done recursively and may have many tens of thousands of recursions
+test = False
 
 
 class ExampleDataset: 
@@ -222,22 +224,23 @@ class Transaction():
 
 '''Wallet Generation & Transactions Testing'''
 
-# user / wallet generation
-Me = Wallet()
-Me.generate_keypair()
-You = Wallet()
-You.generate_keypair()
+if test == True:
+    # user / wallet generation
+    Me = Wallet()
+    Me.generate_keypair()
+    You = Wallet()
+    You.generate_keypair()
 
-# transaction between users
-NewTransaction = Me.create_transaction(You, 5) # sending transaction
-print('Example Transaction between 2 Users:')
-print(NewTransaction) # string representation of transaction (digital signature is very large)
+    # transaction between users
+    NewTransaction = Me.create_transaction(You, 5) # sending transaction
+    print('Example Transaction between 2 Users:')
+    print(NewTransaction) # string representation of transaction (digital signature is very large)
 
-# validating transaction
-print('Verifying Digital Signature:')
-print(NewTransaction.validate_transaction())
-print('Checking Balances for Sufficient Funds:')
-print(NewTransaction.check_funds(Me)) # will return False as user has balance of 0
+    # validating transaction
+    print('Verifying Digital Signature:')
+    print(NewTransaction.validate_transaction())
+    print('Checking Balances for Sufficient Funds:')
+    print(NewTransaction.check_funds(Me)) # will return False as user has balance of 0
 
         
 class MerkleNode:
@@ -336,15 +339,16 @@ class MerkleTree:
 
 '''Merkle Tree Testing'''
 
-dataset1 = ExampleDataset(16).get_dataset() # generate example dataset
-tree1 = MerkleTree(dataset1) # generate merkle tree from example dataset
-print('Merkle Tree:')
-print(tree1.tree)
-proof = tree1.merkle_proof("Data3") # generate proof path given a target node
-print('Merkle Proof:')
-print(proof)
-print('Proof Verification:')
-print(tree1.verify_proof("Data3", proof)) # verify that target node is in merkle tree through proof path
+if test == True:
+    dataset1 = ExampleDataset(16).get_dataset() # generate example dataset
+    tree1 = MerkleTree(dataset1) # generate merkle tree from example dataset
+    print('Merkle Tree:')
+    print(tree1.tree)
+    proof = tree1.merkle_proof("Data3") # generate proof path given a target node
+    print('Merkle Proof:')
+    print(proof)
+    print('Proof Verification:')
+    print(tree1.verify_proof("Data3", proof)) # verify that target node is in merkle tree through proof path
 
 
 
@@ -361,7 +365,7 @@ class Block:
         self.timestamp = datetime.now().strftime("%H:%M:%S")
         self.merkle_root = self.calculate_merkle_root() # used to check if a specific transaction is in the block efficiently (merkle proof)
         self.nonce = 0 # incremented for mining
-        self.difficulty_target = blockchain.get_difficulty_target()
+        self.difficulty_target = blockchain.get_difficulty_target() # before block creation, node calculates difficulty target
         self.block_header = f'''block_height = {self.block_height}, 
                             previous_hash = {self.previous_hash}, 
                             timestamp = {self.timestamp}, 
@@ -435,9 +439,11 @@ class Blockchain():
     def add_transaction(self, transaction):
         self.transaction_pool.append(transaction)
 
-
-    def genesis_block(self, issuance): # issuance is the first amount of currency the program starts with
-        genesis_block = Block(issuance, self) # generates the first currency on the program and has no previous hash so it must be hardcoded in
+    def genesis_block(self, issuance, node_wallet): # issuance is the first amount of currency the program starts with (starting in the node's wallet)
+        '''first block on blockchain is hardcoded in as it has no previous hash and the transaction represents issuance ("printing" currency)'''
+        node_wallet._balance = issuance # directly change balance of wallet of node to issuance
+        genesis_transaction = node_wallet.create_transaction(node_wallet, issuance) # record issuance as the first transaction on the blockchain
+        genesis_block = Block(genesis_transaction, self) 
         return genesis_block
 
     def get_chain(self):
@@ -467,46 +473,53 @@ class Blockchain():
         return False # returns false if required transaction depth has not reached
     
     def get_difficulty_target(self):
-        # listen to difficulty target from network
-        return 1 # example for prototype
+        return self.get_difficulty_target
     
 '''Block & Blockchain Testing''' 
 
-# blockchain and genesis block creation
-Blockchain1 = Blockchain()
-genesis_dataset = ExampleDataset(8).get_dataset()
-genesis_block = Blockchain1.genesis_block(genesis_dataset)
-Blockchain1.add_block(genesis_block) # create the first block and add it to blockchain
-print('Chain of Blockchain:')
-print(Blockchain1.get_chain())
+if test == True:
+    # blockchain and genesis block creation
+    Blockchain1 = Blockchain()
+    genesis_dataset = ExampleDataset(8).get_dataset()
+    genesis_block = Blockchain1.genesis_block(genesis_dataset)
+    Blockchain1.add_block(genesis_block) # create the first block and add it to blockchain
+    print('Chain of Blockchain:')
+    print(Blockchain1.get_chain())
 
-# block mining and creation
-ExDataset1 = ExampleDataset(8).get_dataset()
-block01 = Block(ExDataset1, Blockchain1) # create the block
-print('New Block Created')
-print('Mining Iterations:')
-block01.calculate_block_hash() # mine the block
-print('Difficulty Target (1) Met')
+    # block mining and creation
+    ExDataset1 = ExampleDataset(8).get_dataset()
+    block01 = Block(ExDataset1, Blockchain1) # create the block
+    print('New Block Created')
+    print('Mining Iterations:')
+    block01.calculate_block_hash() # mine the block
+    print('Difficulty Target (1) Met')
 
-# adding block to the blockchain
-block01.is_block_valid() # check validity
-Blockchain1.add_block(block01) # add block
-print('Show New Chain:')
-print(Blockchain1.get_chain()) # show chain
+    # adding block to the blockchain
+    block01.is_block_valid() # check validity
+    Blockchain1.add_block(block01) # add block
+    print('Show New Chain:')
+    print(Blockchain1.get_chain()) # show chain
 
 class MessageType(enum.Enum):
     '''defines incoming message types over the network, transaction or block, needed to handle serialisation differently'''
     TRANSACTION = 1
     BLOCK = 2
+
 class Node:
     def __init__(self, host, port):
         self.host = host
         self.port = port
         self.peers = []  # List of connected peers
         self.server = None
-        self.miner_node = 0
-        self.blockchain = None
-        # nodes also have wallets
+        self.miner_node = 0 # 0: is not a miner node, 1: is a miner node, used to check number of active miner nodes on network
+        self.blockchain = Blockchain() # local copy of the network's blockchain
+        self.wallet = Wallet() # nodes can act as participants on the network, making and receiving transactions
+
+    def initialise_blockchain(self, issuance):
+        '''hardcode genesis block into chain and generate the issuance (starting currency in circulation of the blockchain)'''
+        genesis_block = self.blockchain.genesis_block(issuance, self.wallet) # create genesis block
+        self.blockchain.add_block(genesis_block) # add genesis block to blockchain
+        self.wallet.generate_keypair() # generate public and private key for wallet of node
 
     def start(self):
         '''initialises a server that listens for incoming messages: transactions from users and peer nodes, blocks from peer nodes'''
@@ -521,14 +534,14 @@ class Node:
             print(f"Connection from {address}")
 
             peer_thread = threading.Thread(target=self.handle_peer, args=(client,)) # threads allow for efficient handling of multiple connections
-            peer_thread.start()
-            self.peers.append(client)
+            peer_thread.start() # thread calls handle peer to manage incoming messages on establish connections
+            self.peers.append(client) # add nodes or blockchain clients connected with to the list of peer nodes
 
     def handle_peer(self, client):
         '''manages communication with a connected peer node'''
-        while True:
+        while True: 
             try:
-                data = client.recv(1024) # receives data from connected peer with a max size of 1024 bytes
+                data = client.recv(65536) # receives data from connected peer with a max size of 65536 bytes
                 if not data: # checks if the data is empty meaning the connection has been closed by the peer
                     break
                 message = pickle.loads(data) # deserialise the serialised object
@@ -546,14 +559,28 @@ class Node:
 
     def handle_transaction(self, transaction):
         '''processes (validates) and adds transaction to the node's copy of the transaction pool'''
-        # validate transaction
-        # adds to transaction pool or rejects transaction
+        validation = transaction.validate_transaction() # transaction is validated
+        if validation == True: # check if transaction is valid
+            self.blockchain.add_transaction(transaction) # transaction is added to list of unconfirmed transactions on local copy of blockchain
+            self.broadcast_transaction(transaction) # broadcast the valid transaction to peer nodes for them to validate and add to their copies
+            if len(self.blockchain.transaction_pool) == 8: # if transaction pool limit reached, empty transaction pool 
+                if self.miner_node == 1: # if node is a miner node, create a block with transactions and empty transaction pool
+                    self.create_block(self.blockchain.transaction_pool) 
+                    self.blockchain.transaction_pool = []
+                elif self.miner_node == 0: # if node is not a miner node, just empty transaction pool
+                    self.blockchain.transaction_pool = []
+
+        elif validation ==  False:
+            pass
         print(f"Received transaction: {transaction}")
 
     def handle_block(self, block):
         ''' processes (validates) and adds block to the node's copy of the blockchain'''
-        # validates block
-        # adds to chain or rejects block
+        validation = block.is_block_valid() # validate the block
+        if validation == True:
+            self.blockchain.add_block(block) # add block if its valid
+        elif validation == False:
+            pass
         print(f"Received block: {block}")
 
 
@@ -571,16 +598,34 @@ class Node:
         message = {'type': MessageType.TRANSACTION, 'data': transaction} # object type to serialise in broadcast method is transaction
         self.broadcast(message) # serialise and send the transaction
 
+    def adjust_difficulty(self):
+        '''difficulty target algorithm to adjust the difficulty target each time a block is ready to start being mined again'''
+        active_miners = 0
+        for node in self.peers: # check list of nodes to see how many active miners there are
+            if node.miner_node == 1:
+                active_miners += 1
+            elif node.miner_node == 0:
+                pass
+        time_delay = 0.1 # time delay between block mining iterations of incrementing nonce value
+        x = active_miners / time_delay
+        difficulty_target = math.log(x, 16) # equation for difficulty target given active miners and time delay such that mining takes 10 minutes
+        self.blockchain.adjust_difficulty_target(math.ceil(difficulty_target)) # round difficulty target up (decimal target not possible)
+
 class MinerNode(Node):
     '''instances of this class can use the methods a typical node can use but they can also broadcast blocks to the network'''
 
     def initialise_miner(self):
         '''confirm a node is a miner node in the attributes of the node object'''
-        self.mine_node = 1
+        self.miner_node = 1
 
-    def mine_block(self):
-        '''use block methods to mine a block and broadcast it to peer nodes'''
-        pass
+    def create_block(self, transactions):
+        '''use block methods to mine a block and broadcast it to peer nodes, called when transaction pool limit is reached'''
+        self.adjust_difficulty() # recalculates difficulty target before block creation
+        block = Block(transactions, self.blockchain) # block is created
+        block.calculate_block_hash() # block is mined 
+        block_reward = 5 # reward for mining block
+        self.wallet._balance += block_reward
+        self.broadcast_block(block) # broadcast block to peer nodes
 
     def broadcast_block(self, block):
         '''broadcast a block to the peer nodes on the network through the broadcast method after specifying object type'''
@@ -589,17 +634,18 @@ class MinerNode(Node):
 
 '''Network Testing'''
 
-# Connect to the regular node
-regular_node = Node('127.0.0.1', 5000)
+if test == True:
+    # Connect to the regular node
+    regular_node = Node('127.0.0.1', 5000)
 
-# Broadcast a transaction from the regular node (example transaction)
-regular_node.broadcast_transaction({'sender': 'User1', 'receiver': 'User2', 'amount': 10})
+    # Broadcast a transaction from the regular node (example transaction)
+    regular_node.broadcast_transaction({'sender': 'User1', 'receiver': 'User2', 'amount': 10})
 
-# Connect to the miner node
-miner_node = MinerNode('127.0.0.1', 5001)
+    # Connect to the miner node
+    miner_node = MinerNode('127.0.0.1', 5001)
 
-# Broadcast a block from the miner node (example transaction)
-miner_node.broadcast_block({'transactions': [{'sender': 'User1', 'receiver': 'User2', 'amount': 10}], 'previous_hash': 'abc'})
+    # Broadcast a block from the miner node (example transaction)
+    miner_node.broadcast_block({'transactions': [{'sender': 'User1', 'receiver': 'User2', 'amount': 10}], 'previous_hash': 'abc'})
 
 class BlockchainClient:
     '''Users who do not run nodes interact (making transactions, broadcasting it to the nodes) with the blockchain through a blockchain client'''
@@ -624,11 +670,12 @@ class BlockchainClient:
 
 '''Blockchain Client Testing'''
 
-if __name__ == "__main__":
-    client = BlockchainClient('127.0.0.1', 5000)
-    
-    transaction_data = {'sender': 'Alice', 'receiver': 'Bob', 'amount': 10}
-    client.send_transaction(transaction_data)
+if test == True:
+    if __name__ == "__main__":
+        client = BlockchainClient('127.0.0.1', 5000)
+        
+        transaction_data = {'sender': 'Alice', 'receiver': 'Bob', 'amount': 10}
+        client.send_transaction(transaction_data)
 
 '''Full Program Testing'''
 
@@ -636,9 +683,28 @@ if __name__ == "__main__":
 # create blockchain client for non-node users
 # create miner nodes to mine blocks
 
+regular_node = Node('127.0.0.1', 5000)
+miner_node = MinerNode('127.0.0.1', 5001)
+blockchain_client = BlockchainClient('127.0.0.1', 5003) # users broadcast transactions to network through client
+
+regular_node.initialise_blockchain(100) # create genesis blocks and introduce issuance into chain circulation
+miner_node.initialise_blockchain(100)
+
+regular_node.start() # connect to network and listen for incoming messages
+miner_node.start()
+
+
 # create users
-# make transactions
-# users broadcast transactions
+
+User1 = Wallet()
+User1.generate_keypair()
+User2 = Wallet()
+User2.generate_keypair()
+
+# make transactions, users broadcast transactions
+
+# node (spreading issuance)
+# user to user transaction
 
 # node picks up on transactions
 # node handles transaction
@@ -648,12 +714,13 @@ if __name__ == "__main__":
 # miner nodes create blocks
 # miner nodes compete to mine block
 # winning miner broadcasts block to peer nodes
+# block reward
 
 
-'''Edge Case Scenario Testing'''
+'''Edge Case Scenario Testing (malicious attacks)'''
 
 # invalidated digital signature
 # transaction insufficient funds
-# invalidated block
-# invalidated merkle root
+# invalidated block (difficulty target not met)
+# invalidated merkle root (transaction tampering)
 # fork in the network, fork resolution
