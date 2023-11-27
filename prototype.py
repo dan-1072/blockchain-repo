@@ -119,7 +119,7 @@ class Wallet:
 
     def create_transaction(self, recipient_wallet, amount):
         recipient_pk = recipient_wallet.reveal_pk()
-        transaction = Transaction(self.public_key, recipient_pk, amount, self.private_key) # automatically signs transaction
+        transaction = Transaction(self.public_key, recipient_pk, amount, self.private_key, self, recipient_wallet) # automatically signs transaction
         return transaction
     
     def validate_transaction(self, broadcaster, digital_signature, transactionID):
@@ -163,17 +163,18 @@ class Wallet:
     def reveal_pk(self):
         return self.public_key
 
-    # check balance
 
 class Transaction():
 
-    def __init__(self, sender_pk, recipient_pk, amount, private_key):
+    def __init__(self, sender_pk, recipient_pk, amount, private_key, sender_wallet, recipient_wallet):
         self.sender_pk = sender_pk
         self.recipient_pk = recipient_pk
         self.amount = amount
         self.timestamp = datetime.now().strftime("%H:%M:%S")
         self.transactionID = self.calculate_transactionID()
         self.digital_signature = self.sign_transaction(private_key)
+        self.sender_wallet = sender_wallet
+        self.recipient_wallet = recipient_wallet
 
     def calculate_transactionID(self):
         '''Calculate hash of the transaction's contents to represent transaction when referenced on blockchain'''
@@ -368,7 +369,7 @@ class Block:
         self.difficulty_target = blockchain.get_difficulty_target() # before block creation, node calculates difficulty target
         self.block_header = f'''block_height = {self.block_height}, 
                             previous_hash = {self.previous_hash}, 
-                            timestamp = {self.timestamp}, 
+                            timestamp = {self.timestamp},
                             merkle_root = {self.merkle_root},
                             transactions = {self.transactions},
                             difficulty_target = {self.difficulty_target}''' # ready format for hashing
@@ -435,6 +436,7 @@ class Blockchain():
     def __init__(self):
         self.chain = []
         self.transaction_pool = [] # unconfirmed, verified transactions
+        self.difficulty_target = None # adjusted by network node directly
 
     def add_transaction(self, transaction):
         self.transaction_pool.append(transaction)
@@ -473,7 +475,7 @@ class Blockchain():
         return False # returns false if required transaction depth has not reached
     
     def get_difficulty_target(self):
-        return self.get_difficulty_target
+        return self.difficulty_target
     
 '''Block & Blockchain Testing''' 
 
@@ -561,9 +563,13 @@ class Node:
         '''processes (validates) and adds transaction to the node's copy of the transaction pool'''
         validation = transaction.validate_transaction() # transaction is validated
         if validation == True: # check if transaction is valid
+            
             self.blockchain.add_transaction(transaction) # transaction is added to list of unconfirmed transactions on local copy of blockchain
+            transaction.sender_wallet.transactions.append(transaction) # add transaction to sender's history of transactions
+            transaction.recipient_wallet.transactions.append(transaction) # add transaction to recipient's history of transactions
             self.broadcast_transaction(transaction) # broadcast the valid transaction to peer nodes for them to validate and add to their copies
-            if len(self.blockchain.transaction_pool) == 8: # if transaction pool limit reached, empty transaction pool 
+
+            if len(self.blockchain.transaction_pool) == 4: # if transaction pool limit reached, empty transaction pool 
                 if self.miner_node == 1: # if node is a miner node, create a block with transactions and empty transaction pool
                     self.create_block(self.blockchain.transaction_pool) 
                     self.blockchain.transaction_pool = []
@@ -589,7 +595,7 @@ class Node:
         serialised_message = pickle.dumps(message) # serialise the message for more efficient broadcasting 
         for peer in self.peers: # broadcast to all peer nodes on the network
             try:
-                peer.send(serialised_message)
+                peer.server.send(serialised_message)
             except Exception as e:
                 print(f"Error broadcasting to peer: {e}")
 
@@ -609,7 +615,7 @@ class Node:
         time_delay = 0.1 # time delay between block mining iterations of incrementing nonce value
         x = active_miners / time_delay
         difficulty_target = math.log(x, 16) # equation for difficulty target given active miners and time delay such that mining takes 10 minutes
-        self.blockchain.adjust_difficulty_target(math.ceil(difficulty_target)) # round difficulty target up (decimal target not possible)
+        self.blockchain.difficulty_target = math.ceil(difficulty_target) # round difficulty target up (decimal target not possible)
 
 class MinerNode(Node):
     '''instances of this class can use the methods a typical node can use but they can also broadcast blocks to the network'''
@@ -624,7 +630,7 @@ class MinerNode(Node):
         block = Block(transactions, self.blockchain) # block is created
         block.calculate_block_hash() # block is mined 
         block_reward = 5 # reward for mining block
-        self.wallet._balance += block_reward
+        self.wallet._balance += block_reward # CHANGE to a system where the mining reward is part of the set of transactions to mine a block with
         self.broadcast_block(block) # broadcast block to peer nodes
 
     def broadcast_block(self, block):
@@ -696,25 +702,38 @@ miner_node.start()
 
 # create users
 
-User1 = Wallet()
-User1.generate_keypair()
-User2 = Wallet()
-User2.generate_keypair()
+user_1 = Wallet()
+user_1.generate_keypair()
+user_2 = Wallet()
+user_2.generate_keypair()
 
 # make transactions, users broadcast transactions
 
-# node (spreading issuance)
-# user to user transaction
+# second block (first is genesis block) needs to be issuance spreading
+
+transaction_1 = regular_node.wallet.create_transaction(user_1, 50)
+transaction_2 = regular_node.wallet.create_transaction(user_2, 50)
+transaction_3 = user_1.create_transaction(user_2, 25) # dont allow negative amounts
+transaction_4 = user_2.create_transaction(miner_node.wallet, 15)
+
+# NOT ALOT TO PHYSICALLY INPUT BECAUSE INTERFACE IS DESIGNED TO BE VERY AUTOMATED
 
 # node picks up on transactions
 # node handles transaction
 # node broadcasts transaction to peer nodes
+
+
 
 # transaction pool is filled
 # miner nodes create blocks
 # miner nodes compete to mine block
 # winning miner broadcasts block to peer nodes
 # block reward
+
+print(f'user_1 balance: {user_1.get_bal()}') # 0 + 50 - 25
+print(f'user_2 balance: {user_2.get_bal()}') # 0 + 50 + 25 -15
+print(f'regular node wallet balance: {regular_node.wallet.get_bal()}') # 100 - 50 - 50
+print(f'miner node wallet balance: {miner_node.wallet.get_bal()}') # 0 + 100 + 15 (find order)
 
 
 '''Edge Case Scenario Testing (malicious attacks)'''
@@ -724,3 +743,4 @@ User2.generate_keypair()
 # invalidated block (difficulty target not met)
 # invalidated merkle root (transaction tampering)
 # fork in the network, fork resolution
+# nodes being added after blockchain is initialised
