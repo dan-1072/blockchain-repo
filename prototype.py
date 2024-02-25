@@ -2,13 +2,11 @@ import hashlib # hashiing function (sha-256)
 from datetime import datetime # timestamps in blocks
 import random # example dataset generation
 import time # testing mining times
-import sys # recursion limit changing
 import socket # blockchain network
 import threading # efficient handling of multiple connections between nodes at once
 import pickle # for message serialisation and deserialisation
 import enum # for differentiating between transactions and blocks over broadcasting in the network
 import math # used for logarithms to calculate difficulty target
-sys.setrecursionlimit(10**6) # mining is done recursively and may have many tens of thousands of recursions
 test = False
 
 
@@ -86,14 +84,13 @@ class RSA:
     def generate_keys(self):
         p = self.generate_prime(self.key_length // 2) # Generate two large random prime numbers
         q = self.generate_prime(self.key_length // 2)
-        n = p * q# Compute n (modulus)
+        n = p * q # Compute n (modulus)
         phi = (p - 1) * (q - 1) # Compute totient (phi)
         e = 65537  # Choose public exponent (65537 is a Commonly used value in RSA)
         d = self.modinv(e, phi) # Compute private exponent d
         public_key = (e, n)# Public key (e, n)
         private_key = (d, n) # Private key (d, n)
-
-        return public_key, private_key
+        return public_key, private_key 
 
     def encrypt(self, plaintext, d, n):
         '''encryption for signing transactions'''
@@ -135,17 +132,26 @@ class Wallet:
         '''check record of transactions involving wallet and evaluate a final balance'''
         balance = 0
         for transaction in self.transactions:
-            if transaction.sender_pk == self.public_key: # the amount from outgoing transactions is deducted from balance
-                balance -= transaction.amount
-            elif transaction.recipient_pk == self.public_key: # the amount from ingoing transactions is added to balance
+            if transaction.recipient_pk == self.public_key: # the amount from ingoing transactions is added to balance
                 balance += transaction.amount
-        self._balance = balance
+            elif transaction.sender_pk == self.public_key: # the amount from outgoing transactions is deducted from balance
+                balance -= transaction.amount
+        if balance >= 0:
+            self._balance = balance
         return balance
     
     def sufficient_bal(self, amount):
         '''check if the user has the sufficient funds to make transaction'''
-        balance = self.evaluate_balance()
-        if balance >= amount:
+        balance = 0
+        print(self.public_key)
+        for transaction in self.transactions:
+            print(f'past transaction: {transaction.amount} on the account {transaction.sender_pk}')
+            if transaction.recipient_pk == self.public_key: # the amount from ingoing transactions is added to balance
+                balance += transaction.amount
+            elif transaction.sender_pk == self.public_key: # the amount from outgoing transactions is deducted from balance
+                balance -= transaction.amount
+        print(f'current calculated balance: {balance} vs 0')
+        if balance >= 0:
             return True
         elif balance < amount:
             return False
@@ -162,6 +168,11 @@ class Wallet:
         
     def reveal_pk(self):
         return self.public_key
+    
+    def update_wallet(self, deserialised_wallet):
+        self.transactions = deserialised_wallet.transactions
+        self._balance = deserialised_wallet._balance
+        print(f'wallet updated')
 
 
 class Transaction():
@@ -270,14 +281,14 @@ class MerkleTree:
     def build_tree(self):
         '''builds the merkle tree of merkle nodes, providing a merkle root representing the hash of all nodes'''
         leaf_nodes = []
-        # add hashed dataset values into leaf level in string form
+        if len(self.dataset) % 2 != 0: # add hashed dataset values into leaf level in string form
+            self.dataset.append(self.dataset[-1])
         for data in self.dataset:
             hash_input = str(data) # convert to string
             hashed_data = hashlib.sha256(hash_input.encode()).hexdigest()
             leaf_nodes.append(hashed_data)
 
-        tree = [leaf_nodes]
-        # generate parent nodes from child nodes in previous level
+        tree = [leaf_nodes]  # generate parent nodes from child nodes in previous level
         while len(tree[-1]) > 1: # generate next level until the root is reached  (level of length 1)
             parent_nodes = []
             for node in tree[-1][0:len(tree[-1]):2]: # tree[-1] is the current level of the tree
@@ -305,22 +316,21 @@ class MerkleTree:
         current_level = 0 # index of current level 
         while root_reached == False: # traverse tree from target node to root 
             # pick up sibling nodes during traversal and add to proof path
-            for node in self.tree[current_level][0:len(self.tree[current_level]):2]: # look at every other node (first node of a pair) 
-                left_node = node
-                if self.tree[current_level][-1] != node: # if left node isnt last node in tree
-                    right_index = self.tree[current_level].index(left_node) + 1 # one index after left node in the current level
-                    right_node = self.tree[current_level][right_index] 
+            for i in range(0, len(self.tree[current_level]), 2):
+                left_node = self.tree[current_level][i]
+                right_node = self.tree[current_level][i + 1] if i + 1 < len(self.tree[current_level]) else None
                 # check if target node is either of the nodes just defined in the pair
                 if left_node == target_node: 
                     proof_path.append(right_node)
                     target_node = self.calculate_hash(left_node, right_node) # target node for next level (hash of child nodes)
-                elif right_node == target_node:
-                    proof_path.append(left_node)
-                    target_node = self.calculate_hash(left_node, right_node) # target node for next level (hash of child nodes)
-            if len(self.tree[current_level + 1]) == 1: # if the next level is the root 
-                root_reached = True # dont search next level (not needed for proof path)
+                elif right_node != None:
+                    if right_node == target_node:
+                        proof_path.append(left_node)
+                        target_node = self.calculate_hash(left_node, right_node) # target node for next level (hash of child nodes)
+            if current_level + 1 < len(self.tree) and len(self.tree[current_level + 1]) == 1: # check if the next level is within bounds and has a single root node
+                root_reached = True # don't search the next level (not needed for the proof path)
             else:
-                current_level += 1 # search next level
+                current_level += 1 # search the next level
         return proof_path
     
     def verify_proof(self, target_node, proof):
@@ -341,7 +351,7 @@ class MerkleTree:
 '''Merkle Tree Testing'''
 
 if test == True:
-    dataset1 = ExampleDataset(16).get_dataset() # generate example dataset
+    dataset1 = ExampleDataset(4).get_dataset() # generate example dataset
     tree1 = MerkleTree(dataset1) # generate merkle tree from example dataset
     print('Merkle Tree:')
     print(tree1.tree)
@@ -386,17 +396,17 @@ class Block:
         hash_input = self.block_header + str(self.nonce)
         block_hash = hashlib.sha256(hash_input.encode("utf-8")).hexdigest()
         while block_hash[0: (self.difficulty_target)] != "0"*self.difficulty_target: # keep mining while difficulty target is not met
-            print(self.nonce)
             self.nonce += 1 # increment nonce and mine again
             hash_input = self.block_header + str(self.nonce)
             block_hash = hashlib.sha256(hash_input.encode("utf-8")).hexdigest()
+            # time.sleep(0.1)
         self.block_hash = block_hash
+        print('block successfully mined')
 
 
     def is_block_valid(self):
         '''validate block by checking block hash meets difficulty target, and that each transaction is valid (verify each transaction in set)'''
         check = []
-        # block header information and structure is correct
         hash_portion =  self.block_hash[0: self.difficulty_target] # check if hash meets difficulty target
         if str(hash_portion) == "0" * self.difficulty_target:
             check.append(True)
@@ -404,9 +414,9 @@ class Block:
             check.append(False)
         def validate_transactions(): # validate each transaction (verifying digital signatures)
             pass
-        #     for transaction in self.transactions:
-        #         check.append(transaction.validate_transaction())
-        # validate_transactions()
+            for transaction in self.transactions:
+                check.append(transaction.validate_transaction())
+        validate_transactions()
         # transaction double spending prevented (no duplicate transactions)
 
         print(f'is block valid: {all(check)}') # all() returns true if all elements are true
@@ -426,8 +436,10 @@ class Block:
     def transaction_check(self, transaction): # check if transaction is in the block efficiently (merkle proof)
         '''check if a transaction is in a block using merkle proofs (verifying dataset has not been tampered with too)'''
         this_merkle_tree = MerkleTree(self.transactions)
+        print(f'merkle tree: {this_merkle_tree.tree}')
         proof_path = this_merkle_tree.merkle_proof(transaction)
-        verify = this_merkle_tree.verify_proof(proof_path, transaction)
+        print(f'proof path: {proof_path}')
+        verify = this_merkle_tree.verify_proof(transaction, proof_path)
         print(f'is transaction in transactions: {verify}')
 
 class Blockchain():
@@ -445,7 +457,8 @@ class Blockchain():
         '''first block on blockchain is hardcoded in as it has no previous hash and the transaction represents issuance ("printing" currency)'''
         node_wallet._balance = issuance # directly change balance of wallet of node to issuance
         genesis_transaction = node_wallet.create_transaction(node_wallet, issuance) # record issuance as the first transaction on the blockchain
-        genesis_block = Block(genesis_transaction, self) 
+        node_wallet.add_transaction(genesis_transaction)
+        genesis_block = Block([genesis_transaction], self) 
         return genesis_block
 
     def get_chain(self):
@@ -508,52 +521,58 @@ class MessageType(enum.Enum):
     BLOCK = 2
 
 class Node:
-    def __init__(self, host, port):
+    def __init__(self, host, port, client=None):
         self.host = host
         self.port = port
-        self.peers = []  # List of connected peers
+        self.peer_ports = []  # List of connected peers (ports on localhost)
         self.server = None
         self.miner_node = 0 # 0: is not a miner node, 1: is a miner node, used to check number of active miner nodes on network
         self.blockchain = Blockchain() # local copy of the network's blockchain
         self.wallet = Wallet() # nodes can act as participants on the network, making and receiving transactions
+        self.listening = 1
+        self.client = client
 
     def initialise_blockchain(self, issuance):
         '''hardcode genesis block into chain and generate the issuance (starting currency in circulation of the blockchain)'''
+        self.wallet.generate_keypair() # generate public and private key for wallet of node
         genesis_block = self.blockchain.genesis_block(issuance, self.wallet) # create genesis block
         self.blockchain.add_block(genesis_block) # add genesis block to blockchain
-        self.wallet.generate_keypair() # generate public and private key for wallet of node
 
     def start(self):
         '''initialises a server that listens for incoming messages: transactions from users and peer nodes, blocks from peer nodes'''
-        self.server = socket.socket(socket.AF_INET, socket.SOCK_STREAM) # socket used to listen for incoming messages from peer nodes
-        self.server.bind((self.host, self.port))
-        self.server.listen()
+        # try:
+        if self.listening == 1: 
+            self.server = socket.socket(socket.AF_INET, socket.SOCK_STREAM) # socket used to listen for incoming messages from peer nodes
+            self.server.bind((self.host, self.port))
+            self.server.listen(1)
 
         print(f"Node listening on {self.host}:{self.port}")
 
-        while True: # always running until connection is broken
+        while self.listening == 1: # always running until connection is broken
             client, address = self.server.accept() # block until a connection is established returning a new socket with the peer node
             print(f"Connection from {address}")
 
             peer_thread = threading.Thread(target=self.handle_peer, args=(client,)) # threads allow for efficient handling of multiple connections
             peer_thread.start() # thread calls handle peer to manage incoming messages on establish connections
-            self.peers.append(client) # add nodes or blockchain clients connected with to the list of peer nodes
+        # except socket.error:
+        #     pass
 
     def handle_peer(self, client):
         '''manages communication with a connected peer node'''
         while True: 
-            try:
-                data = client.recv(65536) # receives data from connected peer with a max size of 65536 bytes
-                if not data: # checks if the data is empty meaning the connection has been closed by the peer
-                    break
-                message = pickle.loads(data) # deserialise the serialised object
-                self.handle_message(message) # message is handled by handle message method
-            except Exception as e: # closes the connection if there is an error
-                print(f"Error handling peer: {e}")
+            # try:
+            data = client.recv(65536)
+            if not data:
                 break
+            message = pickle.loads(data)
+            self.handle_message(message)
+            # except Exception as e:
+            #     print(f"Error handling peer: {e}")
+            #     break
 
     def handle_message(self, message):
         '''directs received messages to transaction handling or block handling'''
+        print(f'message being processed')
         if message['type'] == MessageType.TRANSACTION:
             self.handle_transaction(message['data'])
         elif message['type'] == MessageType.BLOCK:
@@ -561,24 +580,26 @@ class Node:
 
     def handle_transaction(self, transaction):
         '''processes (validates) and adds transaction to the node's copy of the transaction pool'''
+        print(f"miner node received transaction")
         validation = transaction.validate_transaction() # transaction is validated
         if validation == True: # check if transaction is valid
             
             self.blockchain.add_transaction(transaction) # transaction is added to list of unconfirmed transactions on local copy of blockchain
             transaction.sender_wallet.transactions.append(transaction) # add transaction to sender's history of transactions
             transaction.recipient_wallet.transactions.append(transaction) # add transaction to recipient's history of transactions
-            self.broadcast_transaction(transaction) # broadcast the valid transaction to peer nodes for them to validate and add to their copies
+            # self.broadcast_transaction(transaction) # broadcast the valid transaction to peer nodes for them to validate and add to their copies
 
             if len(self.blockchain.transaction_pool) == 4: # if transaction pool limit reached, empty transaction pool 
+                print(f'blockchain')
                 if self.miner_node == 1: # if node is a miner node, create a block with transactions and empty transaction pool
                     self.create_block(self.blockchain.transaction_pool) 
                     self.blockchain.transaction_pool = []
                 elif self.miner_node == 0: # if node is not a miner node, just empty transaction pool
                     self.blockchain.transaction_pool = []
 
-        elif validation ==  False:
-            pass
-        print(f"Received transaction: {transaction}")
+        elif validation == False:
+            print('invalid transaction')
+        print('blockchain updated')
 
     def handle_block(self, block):
         ''' processes (validates) and adds block to the node's copy of the blockchain'''
@@ -587,38 +608,28 @@ class Node:
             self.blockchain.add_block(block) # add block if its valid
         elif validation == False:
             pass
-        print(f"Received block: {block}")
-
-
-    def broadcast(self, message):
-        '''broadcast a message to the peer nodes on the network that are listening'''
-        serialised_message = pickle.dumps(message) # serialise the message for more efficient broadcasting 
-        for peer in self.peers: # broadcast to all peer nodes on the network
-            try:
-                peer.server.send(serialised_message)
-            except Exception as e:
-                print(f"Error broadcasting to peer: {e}")
-
-    def broadcast_transaction(self, transaction):
-        '''broadcast a transaction to the peer nodes on the network through the broadcast method after specifying object type'''
-        message = {'type': MessageType.TRANSACTION, 'data': transaction} # object type to serialise in broadcast method is transaction
-        self.broadcast(message) # serialise and send the transaction
+        print(f"Received block: {self.miner_node} ") #{block}
 
     def adjust_difficulty(self):
         '''difficulty target algorithm to adjust the difficulty target each time a block is ready to start being mined again'''
-        active_miners = 0
-        for node in self.peers: # check list of nodes to see how many active miners there are
+        active_miners = 1
+        for node in self.peer_ports: # check list of nodes to see how many active miners there are
             if node.miner_node == 1:
                 active_miners += 1
             elif node.miner_node == 0:
                 pass
-        time_delay = 0.1 # time delay between block mining iterations of incrementing nonce value
-        x = active_miners / time_delay
-        difficulty_target = math.log(x, 16) # equation for difficulty target given active miners and time delay such that mining takes 10 minutes
+        t = 0.1 # time delay between block mining iterations of incrementing nonce value
+        d = 60 # desired average time for network to produce a block (solve block puzzle)
+        attempts = d / t
+        difficulty_target = math.log(attempts*active_miners, 16) # equation for difficulty target given active miners and time delay such that mining takes 1 minute 
         self.blockchain.difficulty_target = math.ceil(difficulty_target) # round difficulty target up (decimal target not possible)
+        print(f'difficulty target is {difficulty_target}')
 
 class MinerNode(Node):
     '''instances of this class can use the methods a typical node can use but they can also broadcast blocks to the network'''
+
+    def __init__(self, host, port):
+        super().__init__(host, port)
 
     def initialise_miner(self):
         '''confirm a node is a miner node in the attributes of the node object'''
@@ -626,41 +637,103 @@ class MinerNode(Node):
 
     def create_block(self, transactions):
         '''use block methods to mine a block and broadcast it to peer nodes, called when transaction pool limit is reached'''
-        self.adjust_difficulty() # recalculates difficulty target before block creation
-        block = Block(transactions, self.blockchain) # block is created
-        block.calculate_block_hash() # block is mined 
+        validated_transactions = []
+        seen_wallets = []
+        previous_wallet = None # for undoing 
+        for transaction in transactions:
+            print(len(seen_wallets))
+            for i in seen_wallets: # add transaction from transaction's wallets to updated wallet
+                    if transaction.sender_wallet.public_key == i.public_key: # update wallet to last iteration's version
+                        print('adding tttttttttttttttttttttttttttttttttransaction because we have seen this wallet before in the transactions')
+                        previous_wallet = i
+                        i.transactions.append(transaction)
+                        previous_wallet_pos = seen_wallets.index(previous_wallet)
+                        transaction.sender_wallet = i
+                    elif transaction.recipient_wallet.public_key == i.public_key:
+                        print('adding tttttttttttttttttttttttttttttttttransaction because we have seen this wallet before in the transactions')
+                        previous_wallet = i
+                        i.transactions.append(transaction)
+                        transaction.recipient_wallet = i
+                        previous_wallet_pos = seen_wallets.index(previous_wallet)
+            check = []
+            check.append(transaction.check_funds(transaction.sender_wallet))
+            check.append(transaction.validate_transaction())
+            print(check)
+            if all(check) == False:
+                print(f'removing wallet')
+                if previous_wallet != None:
+                    previous_wallet.transactions.pop()
+                    seen_wallets[previous_wallet_pos] = previous_wallet # revert last wallet mutated to original state
+                else:
+                    pass
+            elif all(check) == True:
+                validated_transactions.append(transaction)
+                print('transaction validated')
+                transaction.sender_wallet.evaluate_balance()
+                print('sender bal calculated')
+                transaction.recipient_wallet.evaluate_balance()
+                print('receiver bal calculated')
+                if self.client != None: # counter different instances in memory from serialisation problem (synchronise wallet instances)
+                    for wallet in self.client.users:
+                            if wallet.public_key == transaction.sender_wallet.public_key:
+                                print(f'updating wallet')
+                                seen_flag = 0
+                                for j in seen_wallets:
+                                    if wallet.public_key == j.public_key:
+                                        seen_flag = 1
+                                        pos = seen_wallets.index(j)
+                                        wallet.update_wallet(transaction.sender_wallet)
+                                if seen_flag == 0:
+                                    print(f'wallet has not been seen before, adding to seen wallets')
+                                    seen_wallets.append(transaction.sender_wallet)
+                                else:
+                                    seen_wallets[pos] = transaction.sender_wallet
+                            elif wallet.public_key == transaction.recipient_wallet.public_key:
+                                print(f'updating wallet')
+                                seen_flag = 0
+                                for j in seen_wallets:
+                                    if wallet.public_key == j.public_key:
+                                        seen_flag = 1
+                                        pos = seen_wallets.index(j)
+                                        wallet.update_wallet(transaction.recipient_wallet)
+                                if seen_flag == 0:
+                                    print(f'wallet has not been seen before, adding to seen wallets')
+                                    seen_wallets.append(transaction.recipient_wallet)
+                                else:
+                                    seen_wallets[pos] = transaction.recipient_wallet
+            else:
+                print(f'invalid transaction')
+        print([wall.get_bal() for wall in seen_wallets])
+        for k in self.client.users:
+            for l in seen_wallets:
+                if k.public_key == l.public_key:
+                    print(k.get_bal())
+                    print(l.get_bal())
+                    k.update_wallet(l)
+        if len(validated_transactions) != 0:
+            self.adjust_difficulty() # recalculates difficulty target before block creation
+            block = Block(validated_transactions, self.blockchain) # block is created
+            block.calculate_block_hash() # block is mined 
+            block.is_block_valid() # block is validated
+            self.blockchain.add_block(block) # block is added to chain
+
         block_reward = 5 # reward for mining block
-        self.wallet._balance += block_reward # CHANGE to a system where the mining reward is part of the set of transactions to mine a block with
-        self.broadcast_block(block) # broadcast block to peer nodes
-
-    def broadcast_block(self, block):
-        '''broadcast a block to the peer nodes on the network through the broadcast method after specifying object type'''
-        message = {'type': MessageType.BLOCK, 'data': block}
-        self.broadcast(message)
-
-'''Network Testing'''
-
-if test == True:
-    # Connect to the regular node
-    regular_node = Node('127.0.0.1', 5000)
-
-    # Broadcast a transaction from the regular node (example transaction)
-    regular_node.broadcast_transaction({'sender': 'User1', 'receiver': 'User2', 'amount': 10})
-
-    # Connect to the miner node
-    miner_node = MinerNode('127.0.0.1', 5001)
-
-    # Broadcast a block from the miner node (example transaction)
-    miner_node.broadcast_block({'transactions': [{'sender': 'User1', 'receiver': 'User2', 'amount': 10}], 'previous_hash': 'abc'})
-
 class BlockchainClient:
     '''Users who do not run nodes interact (making transactions, broadcasting it to the nodes) with the blockchain through a blockchain client'''
-    def __init__(self, host, port):
+    def __init__(self, host, port, node):
         self.host = host
         self.port = port
+        self.node = node
+        self.users = []
 
     def send_transaction(self, transaction):
         '''send a transaction to the blockchain network'''
+        if transaction.sender_wallet not in self.users:
+            self.users.append(transaction.sender_wallet)
+            print('user added')
+        if transaction.recipient_wallet not in self.users:
+            self.users.append(transaction.recipient_wallet)
+            print('user added')
         try:
             with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as client_socket: # connect client to peer nodes on network
                 client_socket.connect((self.host, self.port))
@@ -670,58 +743,67 @@ class BlockchainClient:
 
                 client_socket.send(serialised_message) # send transaction to network
 
-                print(f"Transaction sent: {transaction}")
+                print(f"Transaction sent from client") #{transaction}
         except Exception as e:
             print(f"Error sending transaction: {e}")
-
-'''Blockchain Client Testing'''
-
-if test == True:
-    if __name__ == "__main__":
-        client = BlockchainClient('127.0.0.1', 5000)
-        
-        transaction_data = {'sender': 'Alice', 'receiver': 'Bob', 'amount': 10}
-        client.send_transaction(transaction_data)
+        # self.node.listening = 0
 
 '''Full Program Testing'''
 
-# create nodes with their blockchain copies
-# create blockchain client for non-node users
-# create miner nodes to mine blocks
-
-regular_node = Node('127.0.0.1', 5000)
-miner_node = MinerNode('127.0.0.1', 5001)
-blockchain_client = BlockchainClient('127.0.0.1', 5003) # users broadcast transactions to network through client
-
-regular_node.initialise_blockchain(100) # create genesis blocks and introduce issuance into chain circulation
-miner_node.initialise_blockchain(100)
-
-regular_node.start() # connect to network and listen for incoming messages
-miner_node.start()
-
-
-# create users
+def start_node_in_thread(node):
+    node.start()
 
 user_1 = Wallet()
 user_1.generate_keypair()
 user_2 = Wallet()
 user_2.generate_keypair()
+user_3 = Wallet()
+user_3.generate_keypair()
+print(f'user profiles created')
 
-# make transactions, users broadcast transactions
+regular_node = MinerNode('localhost', 5000)
+blockchain_client = BlockchainClient('localhost', 5000, regular_node) # users broadcast transactions to network through client
+regular_node.client = blockchain_client
 
-# second block (first is genesis block) needs to be issuance spreading
+regular_node.initialise_blockchain(100) # create genesis blocks and introduce issuance into chain circulation
+regular_node.initialise_miner()
 
-transaction_1 = regular_node.wallet.create_transaction(user_1, 50)
-transaction_2 = regular_node.wallet.create_transaction(user_2, 50)
-transaction_3 = user_1.create_transaction(user_2, 25) # dont allow negative amounts
-transaction_4 = user_2.create_transaction(miner_node.wallet, 15)
+node_thread = threading.Thread(target=start_node_in_thread, args=(regular_node,))
+node_thread.start() # connect to network and listen for incoming messages
 
-# NOT ALOT TO PHYSICALLY INPUT BECAUSE INTERFACE IS DESIGNED TO BE VERY AUTOMATED
+t1 = regular_node.wallet.create_transaction(user_1, 11)
+t2 = regular_node.wallet.create_transaction(user_2, 14)
+t3 = regular_node.wallet.create_transaction(user_1, 6)
+t4 = regular_node.wallet.create_transaction(user_3, 43)
+t5 = user_2.create_transaction(user_3, 10)
+t6 = user_3.create_transaction(regular_node.wallet, 1)
+t7 = user_1.create_transaction(regular_node.wallet, 4)
+t8 = regular_node.wallet.create_transaction(user_1, 300)
+token = [t4, t2, t1, t3, t8, t6, t7, t5]
+for ti in token:
+    blockchain_client.send_transaction(ti)
+    time.sleep(2)
+print(regular_node.wallet.get_bal()) # 31
+print(user_1.get_bal()) # 13
+print(user_2.get_bal()) # 4
+print(user_3.get_bal()) #  52
 
-# node picks up on transactions
-# node handles transaction
-# node broadcasts transaction to peer nodes
+for bloc in regular_node.blockchain.get_chain()[1:]:
+    print(f'amount of transactions in this block: {len(bloc.transactions)}')
+    bloc.transaction_check(t8)
 
+
+# prevent users from sending money to themself
+
+# 1: users, client and nodes are generated
+# 2: users or nodes make transactions
+# 3: blockchain client sends transaction to node
+# 4: node validates transaction and broadcasts to other nodes for other nodes to validate
+# 5: transaction pool reaches limit
+# 6: transaction pool is emptied and used as transactions for a block
+# 7: merkle tree is generated
+# 8: block is mined by node, block reward is given to miner in next block, added to local copy of chain and broadcasted to all other nodes on network to validate and add
+# 9: transactions are successfully completed and cycle can restart
 
 
 # transaction pool is filled
@@ -729,11 +811,6 @@ transaction_4 = user_2.create_transaction(miner_node.wallet, 15)
 # miner nodes compete to mine block
 # winning miner broadcasts block to peer nodes
 # block reward
-
-print(f'user_1 balance: {user_1.get_bal()}') # 0 + 50 - 25
-print(f'user_2 balance: {user_2.get_bal()}') # 0 + 50 + 25 -15
-print(f'regular node wallet balance: {regular_node.wallet.get_bal()}') # 100 - 50 - 50
-print(f'miner node wallet balance: {miner_node.wallet.get_bal()}') # 0 + 100 + 15 (find order)
 
 
 '''Edge Case Scenario Testing (malicious attacks)'''
@@ -744,3 +821,5 @@ print(f'miner node wallet balance: {miner_node.wallet.get_bal()}') # 0 + 100 + 1
 # invalidated merkle root (transaction tampering)
 # fork in the network, fork resolution
 # nodes being added after blockchain is initialised
+
+# to do: load users with history from database using a save
