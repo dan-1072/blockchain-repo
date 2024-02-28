@@ -1,8 +1,8 @@
 
-
 '''this github repository and the following code is the work of Daniel Mirnejhad (candidate number 6416) for the AQA A-level Computer Science Non-Examination Assessment'''
 
-
+debug_mode = 0
+desired_mining_time = 60
 import hashlib # hashiing function (sha-256)
 from datetime import datetime # timestamps in blocks
 import random # example dataset generation
@@ -12,8 +12,8 @@ import threading # efficient handling of multiple connections between nodes at o
 import pickle # for message serialisation and deserialisation
 import enum # for differentiating between transactions and blocks over broadcasting in the network
 import math # used for logarithms to calculate difficulty target
+import ast # used to take string copy of public key into tuple
 test = False # used for testing individual classes (not the final test)
-
 
 class ExampleDataset: 
     '''generate example datasets in place of transactions for testing'''
@@ -150,7 +150,7 @@ class Wallet:
         parameters: None
         returns: None
         '''
-        self.public_key, self.private_key = RSA().generate_keys()
+        self.public_key, self._private_key = RSA().generate_keys()
 
     def create_transaction(self, recipient_wallet, amount):
         ''' create a transaction object representing a transaction between self (sending from this wallet) and a different wallet
@@ -162,7 +162,8 @@ class Wallet:
             print('invalid transaction')
             return
         recipient_pk = recipient_wallet.reveal_pk()
-        transaction = Transaction(self.public_key, recipient_pk, amount, self.private_key, self, recipient_wallet) # automatically signs transaction
+        transaction = Transaction(self.public_key, recipient_pk, amount, self._private_key, self, recipient_wallet) # automatically signs transaction
+        # print(transaction)
         return transaction
     
     def validate_transaction(self, broadcaster, digital_signature, transactionID):
@@ -201,15 +202,15 @@ class Wallet:
         parameters: amount (unconfirmed transaction's amount that is specified to be leaving the user's balance)
         returns: Boolean (True if user has enough to allow transaction to go through, False if it would cause negative balance)
         '''
+        global debug_mode
         balance = 0
-        print(self.public_key)
         for transaction in self.transactions:
-            print(f'past transaction: {transaction.amount} on the account {transaction.sender_pk}')
             if transaction.recipient_pk == self.public_key: # the amount from ingoing transactions is added to balance
                 balance += transaction.amount
             elif transaction.sender_pk == self.public_key: # the amount from outgoing transactions is deducted from balance
                 balance -= transaction.amount
-        print(f'current calculated balance: {balance} vs 0')
+        if debug_mode == 1:
+            print(f'current calculated balance: {balance} vs 0')
         if balance >= 0:
             return True
         elif balance < amount:
@@ -287,7 +288,7 @@ class Transaction():
         parameters: private_key (used for the encryption process of exponentiation with the private exponent, modulo n, n is also in the private key)
         returns: digital_signature (the resulting ciphertext of the encryption process which can be decrypted using the public key mathematically linked to the used private key)
         '''
-        digital_signature = [pow(ord(char), private_key[0], private_key[1]) for char in self.transactionID] # pow function is exponentiation
+        digital_signature = [pow(ord(char), private_key[0], private_key[1]) for char in self.transactionID] # pow function is exponentiation, third input is modular exponentiation
         return digital_signature
     
     def validate_transaction(self):
@@ -297,7 +298,7 @@ class Transaction():
         returns: Boolean (True if public key used to decrypt is mathematically linked to the private key used to encrypt to make the digital signature, else False)
         '''
         # decrypt the encrypted transaction ID and compare to transaction ID of the transaction to see if decryption worked (keys are linked)
-        decryption = ''.join([chr(pow(char, self.sender_pk[0], self.sender_pk[1])) for char in self.digital_signature]) # pow function is exponentiation
+        decryption = ''.join([chr(pow(char, self.sender_pk[0], self.sender_pk[1])) for char in self.digital_signature]) # pow function is exponentiation, third input is modular exponentiation
         if decryption == self.transactionID:
             return True
         else:
@@ -595,9 +596,7 @@ class Block:
         returns: None
         '''
         this_merkle_tree = MerkleTree(self.transactions)
-        print(f'merkle tree: {this_merkle_tree.tree}')
         proof_path = this_merkle_tree.merkle_proof(transaction)
-        print(f'proof path: {proof_path}')
         verify = this_merkle_tree.verify_proof(transaction, proof_path)
         print(f'is transaction in transactions: {verify}')
 
@@ -743,17 +742,19 @@ class Node:
         parameters: None
         returns: None
         '''
+        global debug_mode
         try:
             if self.listening == 1: 
                 self.server = socket.socket(socket.AF_INET, socket.SOCK_STREAM) # socket used to listen for incoming messages from peer nodes
                 self.server.bind((self.host, self.port))
                 self.server.listen(1)
-
-            print(f"Node listening on {self.host}:{self.port}")
+            if debug_mode == 1:
+                print(f"Node listening on {self.host}:{self.port}")
 
             while self.listening == 1: # always running until connection is broken
                 client, address = self.server.accept() # block until a connection is established returning a new socket with the peer node
-                print(f"Connection from {address}")
+                if debug_mode == 1:
+                    print(f"Connection from {address}")
 
                 peer_thread = threading.Thread(target=self.handle_peer, args=(client,)) # threads allow for efficient handling of multiple connections
                 peer_thread.start() # thread calls handle peer to manage incoming messages on establish connections
@@ -783,9 +784,11 @@ class Node:
         parameters: message (the received message from client)
         returns: None
         '''
-        print(f'message being processed')
+        global debug_mode
         if message['type'] == MessageType.TRANSACTION:
             self.handle_transaction(message['data'])
+            if debug_mode == 1:
+                print('transcation received, node is handling...')
         elif message['type'] == MessageType.BLOCK:
             self.handle_block(message['data'])
 
@@ -795,7 +798,7 @@ class Node:
         parameters: transaction (the transaction received from client that is to be validated and, if valid, added to transaction pool to be added to a block)
         returns: None
         '''
-        print(f"miner node received transaction")
+        global debug_mode
         validation = transaction.validate_transaction() # transaction is validated
         if validation == True: # check if transaction is valid
             
@@ -805,16 +808,17 @@ class Node:
             # self.broadcast_transaction(transaction) # broadcast the valid transaction to peer nodes for them to validate and add to their copies
 
             if len(self.blockchain.transaction_pool) == 4: # if transaction pool limit reached, empty transaction pool 
-                print(f'blockchain')
                 if self.miner_node == 1: # if node is a miner node, create a block with transactions and empty transaction pool
                     self.create_block(self.blockchain.transaction_pool) 
                     self.blockchain.transaction_pool = []
+                    if debug_mode == 1:
+                        print(f'transaction pool is full, commencing block mining...')
                 elif self.miner_node == 0: # if node is not a miner node, just empty transaction pool
                     self.blockchain.transaction_pool = []
 
         elif validation == False:
             print('invalid transaction')
-        print('blockchain updated')
+        print('transaction pool updated updated')
 
     def handle_block(self, block):
         ''' processes (validates) and adds block to the node's copy of the blockchain
@@ -827,13 +831,13 @@ class Node:
             self.blockchain.add_block(block) # add block if its valid
         elif validation == False:
             pass
-        print(f"Received block: {self.miner_node} ") #{block}
+        print(f"Received block: {self.miner_node} ") 
 
-    def adjust_difficulty(self):
+    def adjust_difficulty(self, desired_time = 60):
         '''difficulty target algorithm to adjust the difficulty target each time a block is ready to start being mined again
         name: adjust_difficulty
         parameters: None
-        returns: None
+        returns: difficulty target (minimum amount of 0s all block hash's must start with to be)
         '''
         active_miners = 1
         for node in self.peer_ports: # check list of nodes to see how many active miners there are
@@ -842,10 +846,10 @@ class Node:
             elif node.miner_node == 0:
                 pass
         t = 0.1 # time delay between block mining iterations of incrementing nonce value
-        d = 60 # desired average time for network to produce a block (solve block puzzle)
-        attempts = d / t
+        attempts = desired_time / t
         difficulty_target = math.log(attempts*active_miners, 16) # equation for difficulty target given active miners and time delay such that mining takes 1 minute 
         self.blockchain.difficulty_target = math.ceil(difficulty_target) # round difficulty target up (decimal target not possible)
+        return math.ceil(difficulty_target)
 
 class MinerNode(Node):
     '''instances of this class can use the methods a typical node can use but they can also broadcast blocks to the network'''
@@ -867,6 +871,7 @@ class MinerNode(Node):
         parameters: transactions (list of transactions to validate and use for a block)
         returns: None
         '''
+        global debug_mode 
         validated_transactions = []
         seen_wallets = []
         previous_wallet = None # for undoing 
@@ -884,22 +889,26 @@ class MinerNode(Node):
                         previous_wallet_pos = seen_wallets.index(previous_wallet)
             check = [] # validate transactions (no causes in negative balance) after adding new transactions to users' wallets 
             check.append(transaction.check_funds(transaction.sender_wallet))
-            check.append(transaction.validate_transaction())
+            check.append(transaction.validate_transaction()) # check if digital signature checks out
             if all(check) == False: # revert wallets back to initial state before transactions were added to evaluate balances, because the transaction is not going through
                 if previous_wallet != None:
                     previous_wallet.transactions.pop()
                     seen_wallets[previous_wallet_pos] = previous_wallet # revert last wallet mutated to original state
+                    if debug_mode == 1:
+                        print('invalid transaction')
                 else:
                     pass
             elif all(check) == True: # transaction is going through
                 validated_transactions.append(transaction)
-                print('transaction validated')
+                if debug_mode == 1:
+                    print('transaction validated')
                 transaction.sender_wallet.evaluate_balance()
                 transaction.recipient_wallet.evaluate_balance()
                 if self.client != None: # counter different instances in memory from serialisation problem (synchronise wallet instances)
                     for wallet in self.client.users: # actual wallets are all updated to have the same state as these deserialised wallets that had the transaction added
                             if wallet.public_key == transaction.sender_wallet.public_key:
-                                print(f'updating wallet')
+                                if debug_mode == 1:
+                                    print(f'updating wallet')
                                 seen_flag = 0
                                 for j in seen_wallets:
                                     if wallet.public_key == j.public_key:
@@ -911,7 +920,8 @@ class MinerNode(Node):
                                 else:
                                     seen_wallets[pos] = transaction.sender_wallet
                             elif wallet.public_key == transaction.recipient_wallet.public_key:
-                                print(f'updating wallet')
+                                if debug_mode == 1:
+                                    print(f'updating wallet')
                                 seen_flag = 0
                                 for j in seen_wallets:
                                     if wallet.public_key == j.public_key:
@@ -929,7 +939,10 @@ class MinerNode(Node):
                 if k.public_key == l.public_key:
                     k.update_wallet(l)
         if len(validated_transactions) != 0:
-            self.adjust_difficulty() # recalculates difficulty target before block creation
+            global desired_mining_time
+            difficulty_target = self.adjust_difficulty(desired_mining_time) # recalculates difficulty target before block creation
+            if debug_mode == 1:
+                print(f'updated difficulty target: {difficulty_target}')
             block = Block(validated_transactions, self.blockchain) # block is created
             block.calculate_block_hash() # block is mined 
             block.is_block_valid() # block is validated
@@ -970,44 +983,46 @@ class BlockchainClient:
 def start_node_in_thread(node):
     node.start()
 
-user_1 = Wallet()
-user_1.generate_keypair()
-user_2 = Wallet()
-user_2.generate_keypair()
-user_3 = Wallet()
-user_3.generate_keypair()
-print(f'user profiles created')
+testfin = False
+if testfin == True:
+    user_1 = Wallet()
+    user_1.generate_keypair()
+    user_2 = Wallet()
+    user_2.generate_keypair()
+    user_3 = Wallet()
+    user_3.generate_keypair()
+    print(f'user profiles created')
 
-regular_node = MinerNode('localhost', 5000)
-blockchain_client = BlockchainClient('localhost', 5000, regular_node) # users broadcast transactions to network through client
-regular_node.client = blockchain_client
+    regular_node = MinerNode('localhost', 5000)
+    blockchain_client = BlockchainClient('localhost', 5000, regular_node) # users broadcast transactions to network through client
+    regular_node.client = blockchain_client
 
-regular_node.initialise_blockchain(100) # create genesis blocks and introduce issuance into chain circulation
-regular_node.initialise_miner()
+    regular_node.initialise_blockchain(100) # create genesis blocks and introduce issuance into chain circulation
+    regular_node.initialise_miner()
 
-node_thread = threading.Thread(target=start_node_in_thread, args=(regular_node,))
-node_thread.start() # connect to network and listen for incoming messages
+    node_thread = threading.Thread(target=start_node_in_thread, args=(regular_node,))
+    node_thread.start() # connect to network and listen for incoming messages
 
-t1 = regular_node.wallet.create_transaction(user_1, 11)
-t2 = regular_node.wallet.create_transaction(user_2, 14)
-t3 = regular_node.wallet.create_transaction(user_1, 6)
-t4 = regular_node.wallet.create_transaction(user_3, 43)
-t5 = user_2.create_transaction(user_3, 10)
-t6 = user_3.create_transaction(regular_node.wallet, 1)
-t7 = user_1.create_transaction(regular_node.wallet, 4)
-t8 = regular_node.wallet.create_transaction(user_1, 300)
-token = [t4, t2, t1, t3, t8, t6, t7, t5]
-for ti in token:
-    blockchain_client.send_transaction(ti)
-    time.sleep(2)
-print(regular_node.wallet.get_bal()) # 31
-print(user_1.get_bal()) # 13
-print(user_2.get_bal()) # 4
-print(user_3.get_bal()) #  52
+    t1 = regular_node.wallet.create_transaction(user_1, 11)
+    t2 = regular_node.wallet.create_transaction(user_2, 14)
+    t3 = regular_node.wallet.create_transaction(user_1, 6)
+    t4 = regular_node.wallet.create_transaction(user_3, 43)
+    t5 = user_2.create_transaction(user_3, 10)
+    t6 = user_3.create_transaction(regular_node.wallet, 1)
+    t7 = user_1.create_transaction(regular_node.wallet, 4)
+    t8 = regular_node.wallet.create_transaction(user_1, 300)
+    token = [t4, t2, t1, t3, t8, t6, t7, t5]
+    for ti in token:
+        blockchain_client.send_transaction(ti)
+        time.sleep(2)
+    print(regular_node.wallet.get_bal()) # 31
+    print(user_1.get_bal()) # 13
+    print(user_2.get_bal()) # 4
+    print(user_3.get_bal()) #  52
 
-for bloc in regular_node.blockchain.get_chain()[1:]:
-    print(f'amount of transactions in this block: {len(bloc.transactions)}')
-    bloc.transaction_check(t8)
+    for bloc in regular_node.blockchain.get_chain()[1:]:
+        print(f'amount of transactions in this block: {len(bloc.transactions)}')
+        bloc.transaction_check(t8)
 
 
 # prevent users from sending money to themself
@@ -1029,14 +1044,214 @@ for bloc in regular_node.blockchain.get_chain()[1:]:
 # winning miner broadcasts block to peer nodes
 # block reward
 
+'''User-End'''
 
-'''Edge Case Scenario Testing (malicious attacks)'''
+class interface:
 
-# invalidated digital signature
-# transaction insufficient funds
-# invalidated block (difficulty target not met)
-# invalidated merkle root (transaction tampering)
-# fork in the network, fork resolution
-# nodes being added after blockchain is initialised
+    def __init__(self):
+        self.wallets = []
+        self.main_menu()
 
-# to do: load users with history from database using a save
+    def main_menu(self):
+        '''provides interface to create or log into an account (node or user that communicates through blockchain interface)
+        parameters: None
+        returns: None
+        '''
+        menu1 = input('''create account (1) \nlog into account (2)''')
+        if menu1 == '1':
+            self.create_account()
+        elif menu1 == '2':
+            self.login()
+        else:
+            print('invalid response')
+            self.main_menu()
+        # create account
+        # log into existing account (show defence against impersonation through digital signatures by making transactions and getting them denied)
+
+    def create_account(self):
+        '''creates an account, regular user that communicates through a client or a node that holds a copy of the blockchain, generating a wallet for the end-user
+        name: create_account
+        parameters: None
+        returns: None
+        '''
+        account_type = input('create node (1) \ncreate user (2) \n')
+        if account_type == '1':
+            node = MinerNode('localhost', 5000)
+            node.initialise_miner()
+            if self.wallets != []:
+                node.blockchain = self.wallets[0].blockchain
+                node.client = self.wallets[0].client
+                print(f'public key: \n{node.wallet.public_key} \nprivate key: \n{node.wallet._private_key}')
+                self.node_access(node)
+            issuance = input('issuance: ')
+            try:
+                if int(issuance) > 0: # validating issuance
+                    node.initialise_blockchain(int(issuance))
+                    print(f'public key: \n{node.wallet.public_key} \nprivate key: \n{node.wallet._private_key}')
+                    print(f'initialised blockchain with an issuance of {issuance} \n')
+                else:
+                    print('invalid issuance') 
+                    self.main_menu()
+            except Exception as e:
+                print(f'invalid issuance: {e}') 
+                self.main_menu()
+            node.client = BlockchainClient('localhost', 5000, node)
+            self.wallets.append(node)
+            node_thread = threading.Thread(target=start_node_in_thread, args=(node,))
+            node_thread.start() # connects node to network to listen for incoming messages from client
+            self.node_access(node)
+        elif account_type == '2':
+            try:
+                wallet = Wallet()
+                wallet.generate_keypair()
+                self.wallets.append(wallet)
+                self.wallets[0].client.users.append(wallet)
+                print(f'public key: \n{wallet.public_key} \nprivate key: \n{wallet._private_key}')
+                self.user_access(wallet)
+            except AttributeError: # no blockchain client for users to exist yet
+                print(f'no blockchain client for users')
+                self.wallets.pop()
+                self.main_menu()
+            except Exception as e: # debugging
+                print(f'{e}')
+        else:
+            print('invalid response')
+            self.main_menu()
+
+
+    def login(self):
+        public_key = input(f'public key: ')
+        private_key = input(f'private key: ')
+        for wallet in self.wallets:
+            if isinstance(wallet, Node) or isinstance(wallet, MinerNode):
+                if str(wallet.wallet.public_key) == str(public_key):
+                    wallet.wallet._private_key = ast.literal_eval(private_key) 
+                    print('logging onto account')
+                    self.node_access(wallet)              
+            elif str(wallet.public_key) == str(public_key):
+                print('logging onto account')
+                wallet._private_key = ast.literal_eval(private_key)
+                self.user_access(wallet)
+        print('invalid response')
+        self.main_menu()
+
+    def node_access(self, node):
+        '''provides the functionality for nodes, different to users as they get more in depth access on viewing the blockchain and controlling aspects of it like difficulty target
+        name: node_access
+        parameters: node (the specific node that is maintaining the copy of the blockchain)
+        returns: None
+        '''
+        global debug_mode
+        node_menu = input('''create transaction (1) \nview balance (2) \nview history (3) \nfind transaction(4) \nview chain (5) \nview transaction pool (6) \nadjust  difficulty (7) \ntoggle debug mode (8) \nlogout (9) \n''')
+        if node_menu == '1':
+            recipient = input('specify public key of recipient wallet: ')
+            amount = input('choose desired amount to send: ')
+            recipient_pk = ast.literal_eval(recipient) # convert string into tuple
+            wal = None
+            for wallet in self.wallets:
+                if isinstance(wallet, Node) or isinstance(wallet, MinerNode): # find the wallet of the desired public key to send to (if recipient is node)
+                    if recipient_pk == ast.literal_eval(str(wallet.wallet.public_key)):
+                        wal = wallet.wallet
+                        break
+                elif recipient_pk == ast.literal_eval(str(wallet.public_key)): # find the wallet of the desired pubic key to send to (if recipient is just a user)
+                    wal = wallet
+                    break
+            if wal == None:
+                print('user does not exist')
+                self.node_access(node)
+            else:
+                transaction = node.wallet.create_transaction(wal, int(amount)) # make transation
+                node.client.send_transaction(transaction) # broadcast transaction from blockchain client to node for transaction handling
+                self.node_access(node)
+        elif node_menu == '2':
+            print(node.wallet.get_bal())
+            self.node_access(node)
+        elif node_menu == '3':
+            print(node.wallet.transactions)
+            self.node_access(node)
+        elif node_menu == '4':
+            transaction = input('transaction to look for (number in history): ')  
+            for block in self.wallets[0].blockchain.get_chain()[1:]:
+                block.transaction_check(node.wallet.transactions[transaction - 1]) # uses merkle proof for ech block past the genesis block to check for a transaction
+            self.node_access(node)
+        elif node_menu == '5':
+            print(node.blockchain.get_chain())
+            self.node_access(node)
+        elif node_menu == '6':
+            if debug_mode == 1:
+                print(node.blockchain.transaction_pool)
+            else:
+                print([f'transaction' for i in node.blockchain.transaction_pool])
+            self.node_access(node)
+        elif node_menu == '7':
+            global desired_mining_time
+            target = input('desired average time to mine a block: ')
+            try:
+                target = int(target)
+                if target > 0:
+                    desired_mining_time = target
+            except Exception as e:
+                print('target must be a postive number')
+                self.node_access(node)
+            print('invalid response')
+            self.node_access(node)
+        elif node_menu == '8': 
+            if debug_mode == 0:
+                debug_mode = 1 # allows node to see debugging statements like prints in the mining process
+            elif debug_mode == 1:
+                debug_mode = 0
+            self.node_access(node)
+        elif node_menu == '9':
+            print(f'logging out of node, returning to main menu')
+            self.main_menu()
+        else:
+            print(f'invalid response')
+            self.node_access(node)
+
+
+    def user_access(self, user):
+        '''provides the functionality regular users interacting through a blockchain interface
+        name: user_access
+        parameters: user (which user is currently logged in)
+        returns: None
+        '''
+        node_menu = input('''create transaction (1) \nview balance (2) \nview history (3) \nfind transaction(4)  \nlogout (5) \n''')
+        if node_menu == '1':
+            print(self.wallets)
+            recipient = input('specify public key of recipient wallet: ')
+            amount = input('choose desired amount to send: ')
+            recipient_pk = ast.literal_eval(recipient) # convert string into tuple
+            wal = None
+            for wallet in self.wallets:
+                if isinstance(wallet, Node) or isinstance(wallet, MinerNode): # find the wallet of the desired public key to send to (if recipient is node)
+                    if recipient_pk == ast.literal_eval(str(wallet.wallet.public_key)):
+                        wal = wallet.wallet
+                        break
+                elif recipient_pk == ast.literal_eval(str(wallet.public_key)): # find the wallet of the desired pubic key to send to (if recipient is just a user)
+                    wal = wallet
+                    break
+            if wal == None:
+                print('user does not exist')
+                self.user_access(user)
+            transaction = user.create_transaction(wal, int(amount))
+            self.wallets[0].client.send_transaction(transaction)
+            time.sleep(1)
+            self.user_access(user)
+        elif node_menu == '2':
+            print(user.get_bal())
+            self.user_access(user)
+        elif node_menu == '3':
+            print(user.transactions)
+            self.user_access(user)
+        elif node_menu == '4':
+            transaction = input('transaction to look for (number in history): ')  
+            for block in self.users[0].blockchain.get_chain()[1:]:
+                block.transaction_check(user.transactions[transaction - 1])
+            self.user_access(user)
+        elif node_menu == '5':
+            self.main_menu()
+        else:
+            print(f'invalid response')
+            self.user_access(user)
+
+interface1 = interface()
