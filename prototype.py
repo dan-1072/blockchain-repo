@@ -2,7 +2,7 @@
 '''this github repository and the following code is the work of Daniel Mirnejhad (candidate number 6416) for the AQA A-level Computer Science Non-Examination Assessment'''
 
 debug_mode = 0
-desired_mining_time = 60
+desired_mining_time = 1
 import hashlib # hashiing function (sha-256)
 from datetime import datetime # timestamps in blocks
 import random # example dataset generation
@@ -534,8 +534,10 @@ class Block:
             self.nonce += 1 # increment nonce and mine again
             hash_input = self.block_header + str(self.nonce)
             block_hash = hashlib.sha256(hash_input.encode("utf-8")).hexdigest()
-            # time.sleep(0.1)
+            time.sleep(0.1)
         self.block_hash = block_hash
+        if debug_mode == 1:
+            print(self)
         print('block successfully mined')
 
 
@@ -1167,7 +1169,10 @@ class interface:
             print(node.wallet.get_bal())
             self.node_access(node)
         elif node_menu == '3':
-            print(node.wallet.transactions)
+            if debug_mode == 1:
+                print(node.wallet.transactions)
+                self.node_access(node)
+            print([f'transaction' for i in node.wallet.transactions])
             self.node_access(node)
         elif node_menu == '4':
             transaction = input('transaction to look for (number in history): ')  
@@ -1203,6 +1208,7 @@ class interface:
             self.node_access(node)
         elif node_menu == '9':
             print(f'logging out of node, returning to main menu')
+            debug_mode = 0
             self.main_menu()
         else:
             print(f'invalid response')
@@ -1217,7 +1223,6 @@ class interface:
         '''
         node_menu = input('''create transaction (1) \nview balance (2) \nview history (3) \nfind transaction(4)  \nlogout (5) \n''')
         if node_menu == '1':
-            print(self.wallets)
             recipient = input('specify public key of recipient wallet: ')
             amount = input('choose desired amount to send: ')
             recipient_pk = ast.literal_eval(recipient) # convert string into tuple
@@ -1241,12 +1246,12 @@ class interface:
             print(user.get_bal())
             self.user_access(user)
         elif node_menu == '3':
-            print(user.transactions)
+            print([f'transaction' for i in user.transactions])
             self.user_access(user)
         elif node_menu == '4':
-            transaction = input('transaction to look for (number in history): ')  
+            transaction = input('transaction to look for in history: ')  
             for block in self.users[0].blockchain.get_chain()[1:]:
-                block.transaction_check(user.transactions[transaction - 1])
+                block.transaction_check(ast.literal_eval(transaction))
             self.user_access(user)
         elif node_menu == '5':
             self.main_menu()
